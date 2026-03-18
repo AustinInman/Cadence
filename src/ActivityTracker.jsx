@@ -5139,7 +5139,7 @@ function relTimeStatic(ts) {
 
 function NotificationsPanel({ notifs, unread, onMarkAllRead, onMarkRead, onClose, onNavigate }) {
  return (
-  <div style={{ position: "fixed", top: "calc(env(safe-area-inset-top, 0px) + 108px)", left: "8px", right: "8px", maxWidth: "360px", margin: "0 auto", background: "var(--bg-1)", border: "1px solid var(--border-1)", borderRadius: "14px", boxShadow: "0 8px 32px rgba(0,0,0,0.6)", zIndex: 300, overflow: "hidden" }}>
+  <div style={{ position: "fixed", top: "calc(env(safe-area-inset-top, 0px) + 60px)", right: "12px", left: "auto", width: "min(360px, calc(100vw - 24px))", background: "var(--bg-1)", border: "1px solid var(--border-1)", borderRadius: "14px", boxShadow: "0 8px 32px rgba(0,0,0,0.6)", zIndex: 400, overflow: "hidden" }}>
    <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border-1)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
     <div style={{ fontSize: "0.9rem", fontWeight: "700", color: "var(--text-primary)", fontFamily: F }}>🔔 Notifications {unread > 0 && <span style={{ background: "var(--accent)", color: "#000", borderRadius: "10px", padding: "1px 7px", fontSize: "0.72rem", fontWeight: "800", marginLeft: "4px" }}>{unread}</span>}</div>
     <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
