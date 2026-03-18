@@ -3111,10 +3111,7 @@ function ProfileSettingsModal({user, allUsers, admins, teams, industryConfigs, i
          <div style={{fontSize:"0.68rem",fontWeight:"800",color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:"4px"}}>Subject</div>
          <div style={{fontSize:"0.82rem",color:"var(--text-muted)",fontFamily:"monospace",marginBottom:"12px"}}>Cadence · Tue 3/18</div>
          <div style={{fontSize:"0.68rem",fontWeight:"800",color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:"4px"}}>Body</div>
-         <pre style={{fontSize:"0.82rem",color:"var(--text-muted)",fontFamily:"monospace",lineHeight:1.6,margin:0,whiteSpace:"pre-wrap"}}>{`Austin: 34/50 dials · 4 connects 🔥3d
-Jake: 28/50 dials · 2 connects
-
-16 dials left in the tank. Finish strong.`}</pre>
+         <pre style={{fontSize:"0.82rem",color:"var(--text-muted)",fontFamily:"monospace",lineHeight:1.6,margin:0,whiteSpace:"pre-wrap"}}>{"Austin: 34/50 dials · 4 connects 🔥3d\nJake: 28/50 dials · 2 connects\n\n16 dials left in the tank. Finish strong."}</pre>
         </div>
 
         {/* Cron setup */}
