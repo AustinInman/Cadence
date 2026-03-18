@@ -1870,25 +1870,117 @@ function UserAvatar({ user, size=32, fontSize=null }) {
  return <div style={{width:sz,height:sz,borderRadius:"50%",background:bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:fs,fontWeight:"800",color:"#fff",flexShrink:0}}>{initials}</div>;
 }
 
-
+// ── DailyReportTab ────────────────────────────────────────────────────────────
 function DailyReportTab({ user }) {
   const F  = "'DM Sans',system-ui,sans-serif";
   const TA = "var(--accent,#1DC9E8)";
-  const TP = "var(--text-primary)";
   const TM = "var(--text-muted)";
   const TD = "var(--text-dim,rgba(255,255,255,0.25))";
   const B1 = "var(--border-1)";
   const BG1 = "var(--bg-1)";
   const BG2 = "var(--bg-2)";
-
   const [recipients, setRecipients] = React.useState([]);
   const [newEmail, setNewEmail]     = React.useState("");
   const [saving, setSaving]         = React.useState(false);
   const [loading, setLoading]       = React.useState(true);
   const [testSending, setTestSending] = React.useState(false);
-  const [testResult, setTestResult]   = React.useState(null); // null | "success" | "error"
+  const [testResult, setTestResult]   = React.useState(null);
   const reportKey = `${user?.orgId||"solo-"+user?.id}::at-report-recipients`;
 
+  React.useEffect(() => {
+    if (!window._sb || !user) return;
+    window._sb.from("kv_store").select("value").eq("key", reportKey).maybeSingle()
+      .then(({data}) => { setRecipients(Array.isArray(data?.value) ? data.value : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [user?.id]);
+
+  const isValidEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
+
+  async function addRecipient() {
+    const email = newEmail.trim().toLowerCase();
+    if (!isValidEmail(email) || recipients.includes(email)) { setNewEmail(""); return; }
+    const updated = [...recipients, email];
+    setSaving(true);
+    await window._sb.from("kv_store").upsert({key:reportKey,value:updated,updated_at:new Date().toISOString()},{onConflict:"key"}).catch(()=>{});
+    setRecipients(updated); setNewEmail(""); setSaving(false);
+  }
+
+  async function removeRecipient(email) {
+    const updated = recipients.filter(e => e !== email);
+    await window._sb.from("kv_store").upsert({key:reportKey,value:updated,updated_at:new Date().toISOString()},{onConflict:"key"}).catch(()=>{});
+    setRecipients(updated);
+  }
+
+  async function sendTest() {
+    setTestSending(true); setTestResult(null);
+    try {
+      const { data: { session } } = await window._sb.auth.getSession();
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/daily-report`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${session?.access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ test: true }),
+      });
+      setTestResult(res.ok ? "success" : "error");
+    } catch { setTestResult("error"); }
+    setTestSending(false);
+  }
+
+  return (
+    <div style={{maxWidth:"480px",display:"flex",flexDirection:"column",gap:"20px"}}>
+      <div>
+        <div style={{fontSize:"1.05rem",fontWeight:"700",color:"var(--text-primary)",fontFamily:F,marginBottom:"4px"}}>📱 Daily Report</div>
+        <div style={{fontSize:"0.85rem",color:TM,lineHeight:1.6}}>Email at 5pm ET every weekday with your group's numbers. Everyone in this list gets the same summary.</div>
+      </div>
+      <div>
+        <div style={{fontSize:"0.7rem",fontWeight:"800",color:TD,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:"10px"}}>Recipients</div>
+        {loading && <div style={{fontSize:"0.82rem",color:TD}}>Loading…</div>}
+        {!loading && recipients.length === 0 && <div style={{fontSize:"0.82rem",color:TD,fontStyle:"italic"}}>No recipients yet.</div>}
+        {recipients.map(email => (
+          <div key={email} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:BG1,border:`1px solid ${B1}`,borderRadius:"10px",marginBottom:"6px"}}>
+            <span style={{fontSize:"0.88rem",fontWeight:"600",color:"var(--text-primary)",fontFamily:F}}>{email}</span>
+            <button onClick={()=>removeRecipient(email)} style={{background:"none",border:"none",color:"rgba(248,113,113,0.7)",cursor:"pointer",fontSize:"0.8rem",fontWeight:"700",padding:"2px 6px",fontFamily:F}}>Remove</button>
+          </div>
+        ))}
+      </div>
+      <div>
+        <div style={{fontSize:"0.7rem",fontWeight:"800",color:TD,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:"8px"}}>Add recipient</div>
+        <div style={{display:"flex",gap:"8px"}}>
+          <input type="email" placeholder="austin@inmangroup.net" value={newEmail}
+            onChange={e=>setNewEmail(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&addRecipient()}
+            style={{flex:1,background:BG2,border:`1px solid ${B1}`,borderRadius:"10px",padding:"10px 14px",color:"var(--text-primary)",fontSize:"0.88rem",fontFamily:F,outline:"none"}}
+          />
+          <button onClick={addRecipient} disabled={saving||!isValidEmail(newEmail)}
+            style={{background:TA,color:"#000",border:"none",borderRadius:"10px",padding:"10px 16px",fontWeight:"800",fontSize:"0.85rem",cursor:"pointer",fontFamily:F,opacity:(!isValidEmail(newEmail)||saving)?0.4:1}}>
+            {saving?"…":"Add"}
+          </button>
+        </div>
+      </div>
+      <div style={{background:BG1,border:`1px solid ${B1}`,borderRadius:"12px",padding:"14px 16px"}}>
+        <div style={{fontSize:"0.68rem",fontWeight:"800",color:TD,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:"4px"}}>Subject</div>
+        <div style={{fontSize:"0.82rem",color:TM,fontFamily:"monospace",marginBottom:"12px"}}>Cadence · Tue 3/18</div>
+        <div style={{fontSize:"0.68rem",fontWeight:"800",color:TD,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:"4px"}}>Body</div>
+        <pre style={{fontSize:"0.82rem",color:TM,fontFamily:"monospace",lineHeight:1.6,margin:0,whiteSpace:"pre-wrap"}}>{"Austin: 34/50 dials · 4 connects 🔥3d\nJake: 28/50 dials · 2 connects\n\n16 dials left in the tank. Finish strong."}</pre>
+      </div>
+      <div style={{background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:"12px",padding:"14px 16px"}}>
+        <div style={{fontSize:"0.8rem",fontWeight:"700",color:"#F59E0B",marginBottom:"6px"}}>One-time setup</div>
+        <div style={{fontSize:"0.75rem",color:TM,lineHeight:1.7}}>
+          Deploy <code style={{color:TA}}>supabase functions deploy daily-report</code><br/>
+          Add cron in Supabase → Edge Functions → Schedules:<br/>
+          <code style={{color:"var(--text-primary)",fontSize:"0.72rem"}}>0 21 * * 1-5</code> → 5pm ET Mon–Fri
+        </div>
+      </div>
+      {recipients.length > 0 && (
+        <button onClick={sendTest} disabled={testSending}
+          style={{background:"rgba(29,201,232,0.08)",border:"1px solid rgba(29,201,232,0.25)",borderRadius:"12px",padding:"13px",fontWeight:"700",fontSize:"0.88rem",color:TA,cursor:"pointer",fontFamily:F,opacity:testSending?0.6:1}}>
+          {testSending ? "Sending test…" : "Send test report now →"}
+        </button>
+      )}
+      {testResult === "success" && <div style={{fontSize:"0.8rem",color:"#4ACF86",fontWeight:"600"}}>✓ Sent — check your inbox.</div>}
+      {testResult === "error" && <div style={{fontSize:"0.8rem",color:"#F87171",fontWeight:"600"}}>Failed — check that RESEND_API_KEY is set in Supabase secrets.</div>}
+    </div>
+  );
+}
 
 export function SettingsPage({user, allUsers, admins, teams, industryConfigs, industryConfig, userGoals, pins, isSuperAdmin, isAdmin,
  onRename, onChangeIndustry, onSaveGoals, onSetPin, onRemovePin,
@@ -2169,8 +2261,9 @@ export function SettingsPage({user, allUsers, admins, teams, industryConfigs, in
     {k:"goals",        label:"My Goals"},
     {k:"journal",      label:"My Journal"},
     {k:"pacer",        label:"Pacer AI"},
+    {k:"subscription",  label:"Subscription 💳"},
     {k:"integrations", label:"Integrations"},
-    {k:"report",       label:"Daily Report"},
+    {k:"report",       label:"📱 Daily Report"},
     {k:"share",   label:"Share Profile"},
     // {k:"refer", label:"Refer & Earn 💸"}, // vaulted
     {k:"feedback",label:"Feedback"},
@@ -2936,6 +3029,16 @@ export function SettingsPage({user, allUsers, admins, teams, industryConfigs, in
       </div>
 
       {/* Pro upsell banner — free users only */}
+      {!isPro&&(
+       <div style={{background:"linear-gradient(135deg,rgba(29,201,232,0.08) 0%,rgba(123,111,216,0.08) 100%)",border:"1px solid rgba(29,201,232,0.25)",borderRadius:"14px",padding:"16px 18px",display:"flex",gap:"14px",alignItems:"flex-start"}}>
+        <div style={{fontSize:"1.5rem",flexShrink:0}}>⚡</div>
+        <div style={{flex:1}}>
+         <div style={{fontSize:"0.9rem",fontWeight:"800",color:"var(--text-primary)",fontFamily:F,marginBottom:"4px"}}>Unlock full Pacer AI with Pro</div>
+         <div style={{fontSize:"0.75rem",color:TM,lineHeight:1.55,marginBottom:"12px"}}>Free gives you 10 credits/month. Pro gives you unlimited Pacer sessions, AI debriefs after every session, proactive check-ins, and memory across conversations.</div>
+         <button onClick={()=>onShowPaywall&&onShowPaywall()} style={{background:"var(--accent)",color:"#000",border:"none",padding:"9px 18px",borderRadius:"9px",fontSize:"0.8rem",fontWeight:"800",cursor:"pointer",fontFamily:F}}>Upgrade to Pro →</button>
+        </div>
+       </div>
+      )}
 
       {/* Engagement level */}
       <div>
@@ -3036,9 +3139,6 @@ export function SettingsPage({user, allUsers, admins, teams, industryConfigs, in
      </div>
     )}
 
-    {/* ──────────────── DAILY REPORT ──────────────── */}
-    {tab==="report" && <DailyReportTab user={user} />}
-
     {/* ──────────────── FEEDBACK ──────────────── */}
     {/* ──────────────── MILESTONES ──────────────── */}
     {tab==="milestones"&&(()=>{
@@ -3109,6 +3209,8 @@ export function SettingsPage({user, allUsers, admins, teams, industryConfigs, in
 
     {/* ──────────────── INTEGRATIONS ──────────────── */}
     {tab==="integrations"&&<IntegrationsTab user={user} isPro={isPro} authUser={authUser} />}
+
+    {tab==="report"&&<DailyReportTab user={user} />}
 
     {/* ──────────────── SHARE PROFILE ──────────────── */}
     {tab==="share"&&(()=>{
