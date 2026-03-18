@@ -1,5 +1,8 @@
 import { callAI } from './cadenceAI.js';
+import { PacerPaywall, PacerUsageBar } from './PacerPaywall.jsx';
+import { FocusSession } from './FocusSession.jsx';
 import React,{useState,useEffect,useRef,useCallback,useMemo} from 'react';
+import { IndividualReport, CrewReport } from './AnalyticsReport.jsx';
 import {AKEY,AVATAR_COLOR_PRESETS,BB1,BB18,BB1A30,BB1A3A,BB2A10,BB2A28,BBA,BD1,BDIR,BG0,BG1,BG2,BG3,BP,BR,CADENCE_LOGO,DEFAULT_INDUSTRIES,F,METRIC_COLORS,MONTH_NAMES,SHORT_MONTHS,TA,TD,TM,TP,TS,TX,addCommunityMember,addJoinRequest,allDaysInMonth,computeGoalPct,computeStreak,consumeInvite,copyText,createCommunity,createInviteToken,createOrganization,dayName,formatDate,formatShort,genId,getDow,getInviteTokenFromURL,getInviteURL,getNs,getUserAvatarColor,initialsColor,injectThemeVars,isWeekend,lastWeekendSat,loadAdmins,loadCommunityMembers,loadGlobalSuperAdmin,loadIndustryConfig,loadInvite,loadMessages,loadOrgMeta,loadPendingRequests,loadPins,loadSpaceIndex,loadSpaceMeta,loadSuperAdmin,loadTeams,loadThreads,loadUserData,loadUserMemberships,loadUsers,migrateSoloToOrg,monthKey,ns,nsKey,loadUserRegistry,registerUserGlobally,removeCommunityMember,removeJoinRequest,s,saveAdmins,saveGlobalSuperAdmin,saveIndustryConfig,saveMessages,saveOrgMeta,savePins,saveSpaceMeta,saveSuperAdmin,saveTeams,saveThreads,saveUserData,saveUserMemberships,saveUsers,setNs,soloNs,storageDelete,storageGet,storageSet,todayStr,updateCommunityMemberIndustry,useFlash,weekKey,loadPersonalThreads,savePersonalThreads,loadPersonalMessages,savePersonalMessages,loadPersonalMuted,savePersonalMuted,loadSpaceAdmins,saveSpaceAdmins,writePresence,loadPresence,isOnline,getPresenceStatus,loadNotifications,saveNotifications,pushNotification,loadChallenges,saveChallenges,loadWeeklyRecap,saveWeeklyRecap,loadMvpVotes,saveMvpVotes,loadWeeklyReflection,saveWeeklyReflection,loadStreakFreezes,saveStreakFreezes,getProtectedDates,canLogPTO,canLogSick,loadAccountabilityPairs,saveAccountabilityPairs,saveJournalEntry,loadJournalEntries,loadJournalSettings,saveJournalSettings,loadUserTracks,saveUserTracks,loadActiveTrackId,saveActiveTrackId,trackDataKey,trackGoalKey,loadFeed,saveFeed,postFeedItem,updateFeedItem,deleteFeedItem,loadOrgRoles,saveOrgRoles,loadCommunityRoles,saveCommunityRoles,loadOrgTeams,saveOrgTeams,loadMemberAssignments,saveMemberAssignments,setMemberAssignment,canPerform,getTeamSubtree,defaultOrgRoles,defaultCommunityRoles,ROLE_PERMISSIONS,approveOrg,rejectOrg,loadPendingOrgs,loadDeniedRequests,saveDeniedRequest,clearDeniedRequest,haptic,loadAvatarPhoto,saveAvatarPhoto,registerServiceWorker,notifPermission,requestNotifPermission,fireNotif,notifStreakAtRisk,notifGoalsHit,notifNewDM,notifFeedReaction,notifWeeklyDigest,notifStreakMilestone,scheduleStreakCheck,loadFreezeBank,saveFreezeBank,maybeEarnFreeze,useStreakFreeze,loadPacerMemory,savePacerMemory,updatePacerMemoryFromJournal,detectLogTimePattern,sendWeeklyDigestEmail,loadUnlockedMilestones,saveUnlockedMilestones,getMilestoneDefinitions,computeMilestoneTotals,checkNewMilestones,loadCrewAnnouncement,saveCrewAnnouncement,loadCrewOfficialChallenge,saveCrewOfficialChallenge,loadCrewSlug,saveCrewSlug,resolveCrewSlug} from './shared.js';
 
 // ── Presence display constants ────────────────────────────────────────────────
@@ -2714,7 +2717,7 @@ function ProfileSettingsModal({user, allUsers, admins, teams, industryConfigs, i
 
     {/* Tabs */}
     <div style={{display:"flex",...s.bbBd,background:BG0}}>
-     {[["profile","👤 Profile"],["goals","🎯 Goals"],["pin","🔒 PIN"],["users","👥 Users"],["reflections","📝 Journal"],["notifications","🔔 Notifications"],["report","📱 Daily Report"],["feedback","💬 Feedback"]].map(([k,l])=>(
+     {[["profile","👤 Profile"],["goals","🎯 Goals"],["pin","🔒 PIN"],["users","👥 Users"],["reflections","📝 Journal"],["notifications","🔔 Notifications"],["feedback","💬 Feedback"]].map(([k,l])=>(
       <button key={k} style={{...s.settingsTab,...(tab===k?s.settingsTabActive:{})}} onClick={()=>setTab(k)}>{l}</button>
      ))}
     </div>
@@ -3012,129 +3015,6 @@ function ProfileSettingsModal({user, allUsers, admins, teams, industryConfigs, i
        </div>
       </div>
      )}
-
-     {/* ── DAILY REPORT TAB ── */}
-     {tab==="report"&&(()=>{
-      const [recipients, setRecipients] = React.useState([]);
-      const [newEmail, setNewEmail] = React.useState("");
-      const [saving, setSaving] = React.useState(false);
-      const [loading, setLoading] = React.useState(true);
-      const [testSending, setTestSending] = React.useState(false);
-      const [testResult, setTestResult] = React.useState(null);
-      const reportKey = ns("at-report-recipients");
-
-      React.useEffect(() => {
-       storageGet(reportKey).then(v => {
-        setRecipients(Array.isArray(v) ? v : []);
-        setLoading(false);
-       }).catch(() => setLoading(false));
-      }, []);
-
-      const isValidEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
-
-      async function addRecipient() {
-       const email = newEmail.trim().toLowerCase();
-       if (!isValidEmail(email)) return;
-       if (recipients.includes(email)) { setNewEmail(""); return; }
-       const updated = [...recipients, email];
-       setSaving(true);
-       await storageSet(reportKey, updated).catch(()=>{});
-       setRecipients(updated); setNewEmail(""); setSaving(false);
-      }
-
-      async function removeRecipient(email) {
-       const updated = recipients.filter(e => e !== email);
-       await storageSet(reportKey, updated).catch(()=>{});
-       setRecipients(updated);
-      }
-
-      async function sendTest() {
-       setTestSending(true); setTestResult(null);
-       try {
-        const { data: { session } } = await window._sb.auth.getSession();
-        const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/daily-report`, {
-         method: "POST",
-         headers: { "Authorization": `Bearer ${session?.access_token}`, "Content-Type": "application/json" },
-         body: JSON.stringify({ test: true }),
-        });
-        setTestResult(res.ok ? "success" : "error");
-       } catch { setTestResult("error"); }
-       setTestSending(false);
-      }
-
-      return (
-       <div style={{padding:"20px",display:"flex",flexDirection:"column",gap:"20px"}}>
-        <div>
-         <div style={{fontSize:"0.95rem",fontWeight:"800",color:"var(--text-primary)",fontFamily:F,marginBottom:"4px"}}>Daily Report</div>
-         <div style={{fontSize:"0.8rem",color:"var(--text-muted)",lineHeight:1.6}}>
-          Sends an email at 5pm ET every weekday with your group's numbers for the day. Uses Resend — no extra setup needed.
-         </div>
-        </div>
-
-        {/* Recipient list */}
-        <div>
-         <div style={{fontSize:"0.7rem",fontWeight:"800",color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:"10px"}}>Recipients</div>
-         {loading && <div style={{fontSize:"0.8rem",color:"var(--text-dim)"}}>Loading…</div>}
-         {!loading && recipients.length === 0 && (
-          <div style={{fontSize:"0.82rem",color:"var(--text-dim)",fontStyle:"italic"}}>No recipients yet. Add an email below.</div>
-         )}
-         {recipients.map(email => (
-          <div key={email} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"var(--bg-2)",border:"1px solid var(--border-1)",borderRadius:"10px",marginBottom:"6px"}}>
-           <span style={{fontSize:"0.88rem",fontWeight:"600",color:"var(--text-primary)",fontFamily:F}}>{email}</span>
-           <button onClick={()=>removeRecipient(email)} style={{background:"none",border:"none",color:"rgba(248,113,113,0.7)",cursor:"pointer",fontSize:"0.8rem",fontWeight:"700",padding:"2px 6px",fontFamily:F}}>Remove</button>
-          </div>
-         ))}
-        </div>
-
-        {/* Add email */}
-        <div>
-         <div style={{fontSize:"0.7rem",fontWeight:"800",color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:"8px"}}>Add recipient</div>
-         <div style={{display:"flex",gap:"8px"}}>
-          <input
-           type="email" placeholder="austin@inmangroup.net" value={newEmail}
-           onChange={e=>setNewEmail(e.target.value)}
-           onKeyDown={e=>e.key==="Enter"&&addRecipient()}
-           style={{flex:1,background:"var(--bg-2)",border:"1px solid var(--border-1)",borderRadius:"10px",padding:"10px 14px",color:"var(--text-primary)",fontSize:"0.88rem",fontFamily:F,outline:"none"}}
-          />
-          <button onClick={addRecipient} disabled={saving||!isValidEmail(newEmail)}
-           style={{background:"var(--accent)",color:"#000",border:"none",borderRadius:"10px",padding:"10px 16px",fontWeight:"800",fontSize:"0.85rem",cursor:"pointer",fontFamily:F,opacity:(!isValidEmail(newEmail)||saving)?0.4:1}}>
-           {saving?"…":"Add"}
-          </button>
-         </div>
-        </div>
-
-        {/* Preview */}
-        <div style={{background:"var(--bg-2)",border:"1px solid var(--border-1)",borderRadius:"12px",padding:"14px 16px"}}>
-         <div style={{fontSize:"0.68rem",fontWeight:"800",color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:"4px"}}>Subject</div>
-         <div style={{fontSize:"0.82rem",color:"var(--text-muted)",fontFamily:"monospace",marginBottom:"12px"}}>Cadence · Tue 3/18</div>
-         <div style={{fontSize:"0.68rem",fontWeight:"800",color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:"4px"}}>Body</div>
-         <pre style={{fontSize:"0.82rem",color:"var(--text-muted)",fontFamily:"monospace",lineHeight:1.6,margin:0,whiteSpace:"pre-wrap"}}>{"Austin: 34/50 dials · 4 connects 🔥3d\nJake: 28/50 dials · 2 connects\n\n16 dials left in the tank. Finish strong."}</pre>
-        </div>
-
-        {/* Cron setup */}
-        <div style={{background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:"12px",padding:"14px 16px"}}>
-         <div style={{fontSize:"0.8rem",fontWeight:"700",color:"#F59E0B",marginBottom:"6px"}}>One-time setup</div>
-         <div style={{fontSize:"0.75rem",color:"var(--text-muted)",lineHeight:1.7}}>
-          1. Deploy: <code style={{color:"var(--accent)"}}>supabase functions deploy daily-report</code><br/>
-          2. Confirm <code style={{color:"var(--accent)"}}>RESEND_API_KEY</code> is set in your Supabase secrets<br/>
-          3. Update the <code style={{color:"var(--accent)"}}>from:</code> address in daily-report.ts to your verified Resend domain<br/>
-          4. Add cron in Supabase Dashboard → Edge Functions → Schedules:<br/>
-          <code style={{color:"var(--text-primary)",fontSize:"0.72rem"}}>0 21 * * 1-5</code> → 5pm ET Mon–Fri
-         </div>
-        </div>
-
-        {/* Test */}
-        {recipients.length > 0 && (
-         <button onClick={sendTest} disabled={testSending}
-          style={{background:"rgba(29,201,232,0.08)",border:"1px solid rgba(29,201,232,0.25)",borderRadius:"12px",padding:"13px",fontWeight:"700",fontSize:"0.88rem",color:"var(--accent)",cursor:"pointer",fontFamily:F,opacity:testSending?0.6:1}}>
-          {testSending ? "Sending test…" : "Send test report now →"}
-         </button>
-        )}
-        {testResult === "success" && <div style={{fontSize:"0.8rem",color:"#4ACF86",fontWeight:"600"}}>✓ Sent — check your inbox.</div>}
-        {testResult === "error" && <div style={{fontSize:"0.8rem",color:"#F87171",fontWeight:"600"}}>Failed — check that RESEND_API_KEY is set and the from address is verified.</div>}
-       </div>
-      );
-     })()}
 
      {tab==="share"&&user&&(()=>{
       const _sd = myData||{};
@@ -6402,7 +6282,6 @@ function SideNav({ view, navigateTo, currentUser, orgId, communities, messaging,
  const navItems = [
   { id: "home", icon: "\u{1F3E0}", label: "Home", isGroup: true },
   { id: "workspace", icon: "🗂️", label: "Workspace", isWorkspaceGroup: true },
-  { id: "tracker", icon: "📊", label: "Activity Tracker" },
 
   { id: "crews", icon: "⚡", label: "Crews", badge: communityPendingCount > 0 ? String(communityPendingCount) : null, isComGroup: true },
   { id: "messages", icon: "\u{1F4AC}", label: "Messages", badge: totalUnread > 0 ? (totalUnread > 9 ? "9+" : String(totalUnread)) : null },
@@ -6563,26 +6442,22 @@ function MobileBottomNav({ view, navigateTo, orgId, communities, messaging, noti
  );
 
  // Main 4 tabs
- // Icon for tracker tab
- const IconTracker = ({ active }) => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "var(--accent)" : "var(--text-dim)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-   <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-  </svg>
- );
-
  const mainTabs = [
-  { id: "home",    label: "Home",    Icon: IconHome,    active: isHome },
-  { id: "tracker", label: "Tracker", Icon: IconTracker, active: view === "tracker" },
-  { id: "crews",   label: "Crews",   Icon: IconCrew,    active: isCrew },
-  { id: "more",    label: "More",    Icon: IconMore,    active: isMore, isMore: true },
+  { id: "home",      label: "Home",      Icon: IconHome,      active: isHome },
+  { id: "workspace", label: "Workspace", Icon: IconWorkspace, active: isWorkspace },
+  { id: "crews",     label: "Crews",     Icon: IconCrew,      active: isCrew },
+  { id: "more",  label: "More",  Icon: IconMore,  active: isMore, isMore: true },
  ];
- // Remove solo placeholder logic — tracker fills the slot now
-
+ // If solo — always show 4 tabs (Home, solo placeholder, Crews, More)
+ // Fill to 4 items if fewer exist
+ while (mainTabs.length < 4 && isSolo) {
+  mainTabs.splice(2, 0, { id: "leaderboard_placeholder", label: "", Icon: () => null, active: false, hidden: true });
+ }
 
  // Sub-tab rows
  const homeSubTabs  = [["home","Dashboard"],["journal","Journal"],["history","Stats"]];
  // orgSubTabs removed
- const crewSubTabs  = [["dashboard","Dashboard"],["feed","Pulse"],["members","Members"]];
+ const crewSubTabs  = [["dashboard","Dashboard"],["feed","Pulse"],["compete","Compete"],["members","Members"]];
 
  const showSubTabs  = isHome || isCrew;
  const subTabs      = isHome ? homeSubTabs : crewSubTabs;
@@ -6603,9 +6478,6 @@ function MobileBottomNav({ view, navigateTo, orgId, communities, messaging, noti
 
  // More drawer items
  const moreItems = [
-  { id: "tracker", icon: (
-   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-  ), label: "Activity Tracker", highlight: true },
   { id: "messages", icon: (
    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
   ), label: "Messages", badge: totalUnread > 0 ? (totalUnread > 9 ? "9+" : String(totalUnread)) : null },
@@ -6673,14 +6545,14 @@ function MobileBottomNav({ view, navigateTo, orgId, communities, messaging, noti
            else navigateTo(item.id);
           }}
           style={{ width:"100%", display:"flex", alignItems:"center", gap:"16px",
-           padding:"14px 20px", background: active ? "rgba(29,201,232,0.07)" : item.highlight ? "rgba(29,201,232,0.05)" : "none",
+           padding:"14px 20px", background: active ? "rgba(29,201,232,0.07)" : "none",
            border:"none", cursor:"pointer", fontFamily:F, WebkitTapHighlightColor:"transparent",
            position:"relative",
           }}>
-          <div style={{ color: active ? "var(--accent)" : item.highlight ? "var(--accent)" : item.danger ? "#E05577" : "var(--text-secondary)", flexShrink:0 }}>
+          <div style={{ color: active ? "var(--accent)" : item.danger ? "#E05577" : "var(--text-secondary)", flexShrink:0 }}>
            {item.icon}
           </div>
-          <span style={{ fontSize:"1rem", fontWeight: active || item.highlight ? "700" : "500", color: active || item.highlight ? "var(--accent)" : item.danger ? "#E05577" : "var(--text-primary)", flex:1, textAlign:"left" }}>
+          <span style={{ fontSize:"1rem", fontWeight: active ? "700" : "500", color: active ? "var(--accent)" : item.danger ? "#E05577" : "var(--text-primary)", flex:1, textAlign:"left" }}>
            {item.label}
           </span>
           {item.badge && (
@@ -6877,7 +6749,6 @@ export default function App({ authUser }) {
  const [orgId, setOrgId] = useState(null);
  const [orgMeta, setOrgMeta] = useState(null);
  const [pendingInviteToken, setPendingInviteToken] = useState(null);
- const [crewInviteModal, setCrewInviteModal] = useState(null); // null | { token, invite }
  // Pacer AI settings
  const [pacerSettings, setPacerSettings] = useState(() => {
   try {
@@ -7013,6 +6884,8 @@ export default function App({ authUser }) {
  const [paywallDefaultTier,setPaywallTier]=useState("pro");
  const [isPro,setIsPro]=useState(false);
  const [isElite,setIsElite]=useState(false);
+ const [showIndividualReport,setShowIndividualReport]=useState(false);
+ const [showCrewReport,setShowCrewReport]=useState(false);
  const [reportCrewId,setReportCrewId]=useState(null);
  const [usageStatus,setUsageStatus]=useState(null); // full usage object for credit warnings
  const [isFreePlan,setIsFreePlan]=useState(true); // assume free until checked
@@ -7243,8 +7116,8 @@ export default function App({ authUser }) {
   } else {
    // Default — time-based
    const defaults = {
-    morning: { text: "Morning. Make it count.", actions: [{ label: "Log activity", icon: "⚡", view: "tracker" }, { label: "Log activity", icon: "📊", view: "tracker" }] },
-    midday:  { text: "Midday check-in.", actions: [{ label: "Log activity", icon: "⚡", view: "tracker" }, { label: "Log activity", icon: "📊", view: "tracker" }] },
+    morning: { text: "Morning. Make it count.", actions: [{ label: "Start Focus Session", icon: "⚡", view: "workspace" }, { label: "Log activity", icon: "📊", view: "tracker" }] },
+    midday:  { text: "Midday check-in.", actions: [{ label: "Start Focus Session", icon: "⚡", view: "workspace" }, { label: "Log activity", icon: "📊", view: "tracker" }] },
     evening: { text: "Day's almost done.", actions: [{ label: "Log activity", icon: "📊", view: "tracker" }, { label: "Reflect", icon: "🔍", view: "journal", journalTemplate: "daily", journalMode: "reflect" }] },
    };
    const bucket = hour < 12 ? "morning" : hour < 17 ? "midday" : "evening";
@@ -7400,12 +7273,7 @@ export default function App({ authUser }) {
   try { capturedToken = localStorage.getItem("at-pending-invite"); } catch {}
   if(capturedToken) {
    const inv = await loadInvite(capturedToken);
-   if(inv) {
-    setPendingInviteToken(capturedToken);
-    // For logged-in users, we'll show a join modal after loadAppData completes
-    // Store the invite data so the modal can display crew name etc.
-    window.__pendingInviteData = { token: capturedToken, invite: inv };
-   }
+   if(inv) setPendingInviteToken(capturedToken);
    else { try { localStorage.removeItem("at-pending-invite"); } catch {} }
   }
 
@@ -7439,11 +7307,6 @@ export default function App({ authUser }) {
       localStorage.setItem("at-org-id", regEntry.personalNs);
       if(regEntry.userId) localStorage.setItem("at-uid", regEntry.userId);
       await loadAppData(regEntry.personalNs, regEntry.userId);
-      // Registry path also needs to surface pending invite
-      if(window.__pendingInviteData) {
-       setCrewInviteModal(window.__pendingInviteData);
-       window.__pendingInviteData = null;
-      }
       return;
      }
     } catch(e) { console.warn("Registry lookup failed on startup", e); }
@@ -7487,11 +7350,6 @@ export default function App({ authUser }) {
      loadPendingRequests(resolvedOrgId).then(r => setOrgPendingRequests(r)).catch(()=>{});
     }
     setLoading(false);
-    // If a crew invite was pending, show join modal now that user is loaded
-    if(window.__pendingInviteData) {
-     setCrewInviteModal(window.__pendingInviteData);
-     window.__pendingInviteData = null;
-    }
     // Register service worker for push notifications (silent — no permission prompt yet)
     registerServiceWorker().catch(() => {});
     // Schedule 3pm streak-at-risk check if notifications already granted
@@ -7670,21 +7528,7 @@ export default function App({ authUser }) {
    setTimeout(() => fireOnboardPrompts(nu), 1500);
    return; // new users get onboarding prompts, not daily nudge
   }
-  if(lu.length > 0) {
-   // Before showing the picker, try to auto-match via Supabase auth UID
-   if(authUser?.id) {
-    const authMatch = lu.find(u => u.authUid === authUser.id);
-    if(authMatch) {
-     await loginAs(authMatch, allData, allGoals, configs);
-     await loadUserCommunities(authMatch.id);
-     localStorage.setItem("at-uid", authMatch.id);
-     setLoading(false);
-     if(window.__pendingInviteData) { setCrewInviteModal(window.__pendingInviteData); window.__pendingInviteData = null; }
-     return;
-    }
-   }
-   setModal("setup");
-  } else { setModal("onboarding"); }
+  if(lu.length > 0) { setModal("setup"); } else { setModal("onboarding"); }
   setLoading(false);
  }
 
@@ -7977,54 +7821,6 @@ export default function App({ authUser }) {
    setTimeout(async () => {
     try { await createCommunitySpace(communityName, communityDesc); } catch(e) { console.error(e); }
    }, 100);
-  }
- }
-
- // Join a crew directly as an already-logged-in user — no re-onboarding needed
- async function joinCrewDirect(token) {
-  const invite = await consumeInvite(token);
-  if(!invite) { alert("This invite link is no longer valid or has been revoked."); return false; }
-  if(invite._expired) { alert("This invite link has expired. Ask the crew admin for a fresh link."); return false; }
-  if(invite._maxed) { alert("This invite link has reached its maximum uses."); return false; }
-
-  const crewId = invite.spaceId;
-  if(!crewId) { alert("Invalid invite — no crew found."); return false; }
-
-  const user = currentUserRef.current;
-  if(!user) return false;
-
-  try {
-   const meta = await loadSpaceMeta(crewId);
-   if(!meta) { alert("This crew no longer exists."); return false; }
-
-   // Check if already a member
-   const mem = await loadUserMemberships(user.id);
-   if((mem.communityIds||[]).includes(crewId)) {
-    // Already in — just navigate
-    setActiveSpaceFilter(crewId);
-    navigateTo("crews");
-    try { localStorage.removeItem("at-pending-invite"); } catch {}
-    setPendingInviteToken(null);
-    return true;
-   }
-
-   await addCommunityMember(crewId, user, _oid);
-   await saveUserMemberships(user.id, { ...mem, communityIds: [...(mem.communityIds||[]), crewId] });
-   await loadUserCommunities(user.id);
-
-   try { localStorage.removeItem("at-pending-invite"); } catch {}
-   setPendingInviteToken(null);
-
-   const isManaged = meta?.crewType === "managed";
-   setPacerWelcomeCtx({ joinType: isManaged ? "managed" : "crew", spaceName: meta?.name || invite?.spaceName || "" });
-   setShowPacerWelcome(true);
-   setActiveSpaceFilter(crewId);
-   navigateTo("crews");
-   return true;
-  } catch(e) {
-   console.error("joinCrewDirect error:", e);
-   alert("Something went wrong joining the crew. Please try again.");
-   return false;
   }
  }
 
@@ -8771,24 +8567,6 @@ export default function App({ authUser }) {
     </div>
    )}
 
-   {/* ── Crew invite modal — for already-logged-in users clicking an invite link ── */}
-   {crewInviteModal && currentUser && (
-    <CrewInviteModal
-     invite={crewInviteModal.invite}
-     token={crewInviteModal.token}
-     currentUser={currentUser}
-     onJoin={async () => {
-      const ok = await joinCrewDirect(crewInviteModal.token);
-      if(ok) setCrewInviteModal(null);
-     }}
-     onDismiss={() => {
-      setCrewInviteModal(null);
-      try { localStorage.removeItem("at-pending-invite"); } catch {}
-      setPendingInviteToken(null);
-     }}
-    />
-   )}
-
    {/* ── Full-page onboarding (replaces everything for new visitors) ── */}
    {modal==="onboarding"&&<OnboardingScreen
     pendingInviteToken={pendingInviteToken}
@@ -8980,7 +8758,7 @@ ${text}
     )}
     {currentUser && view === "crews" && (
      <div style={{ display:"flex", gap:"4px", padding:"0 0 14px 0", overflowX:"auto", WebkitOverflowScrolling:"touch", scrollbarWidth:"none", msOverflowStyle:"none" }}>
-      {[["dashboard","Dashboard"],["feed","Pulse"],["members","Members"]].map(([t,label]) => {
+      {[["dashboard","Dashboard"],["feed","Pulse"],["compete","Compete"],["members","Members"]].map(([t,label]) => {
        const comPendingTotal = Object.values(communityPendingRequests||{}).reduce((s,a)=>s+(a?.length||0),0);
        const active = comTab === t;
        return (
@@ -9343,6 +9121,24 @@ ${text}
     </>}
 
     {/* FOCUS SESSION — separate view */}
+    {view==="workspace"&&currentUser&&(
+     <FocusSession
+      currentUser={currentUser}
+      authUser={authUser}
+      plan={usageStatus?.plan||"free"}
+      myGoals={myGoals}
+      indConfig={indConfig}
+      onShowPaywall={()=>{setPaywallTier("pro");setShowPaywall(true);}}
+      onShowElitePaywall={()=>{setPaywallTier("elite");setShowPaywall(true);}}
+      onNavigateTo={navigateTo}
+      trackerCounts={counts}
+      trackerSetCounts={setCounts}
+      trackerActiveMetrics={activeMetrics}
+      trackerNotes={notes}
+      trackerSetNotes={setNotes}
+      trackerSaveDay={saveDay}
+     />
+    )}
 
     {/* HISTORY */}
     {view==="history"&&<>
@@ -9371,7 +9167,17 @@ ${text}
      />
      <div style={s.histTopRow}>
       {/* ── Analytics Report CTA ── */}
-      
+      <button onClick={()=>setShowIndividualReport(true)}
+       style={{ display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",boxSizing:"border-box",
+        background:"linear-gradient(135deg,rgba(29,201,232,0.08) 0%,rgba(168,85,247,0.05) 100%)",
+        border:"1px solid rgba(29,201,232,0.2)",borderRadius:"14px",padding:"14px 16px",
+        cursor:"pointer",WebkitTapHighlightColor:"transparent",marginBottom:"4px",textAlign:"left" }}>
+       <div>
+        <div style={{ fontSize:"0.88rem",fontWeight:800,color:"var(--text-primary)",fontFamily:F,marginBottom:"2px" }}>📊 Performance Report</div>
+        <div style={{ fontSize:"0.72rem",color:"var(--text-muted)",fontFamily:F }}>Goal %, streaks, best days, Pacer's read</div>
+       </div>
+       <span style={{ fontSize:"0.85rem",color:"var(--accent)",flexShrink:0,marginLeft:"10px" }}>→</span>
+      </button>
 
       <div style={s.sectionLabel}>Your History</div>
       <div style={s.actionBtns}>
@@ -9550,6 +9356,40 @@ ${text}
     />
    )}
   </div>
+  <PacerPaywall open={showPaywall} onClose={() => setShowPaywall(false)} onUpgradeSuccess={() => { refreshUsage(); }} />
+  {showIndividualReport && currentUser && (
+   <IndividualReport
+    currentUser={currentUser}
+    myData={(() => {
+      if (isPro || !myData) return myData;
+      const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 3);
+      const cutoffStr = cutoff.toISOString().slice(0, 10);
+      return Object.fromEntries(Object.entries(myData).filter(([d]) => d >= cutoffStr));
+    })()}
+    industryConfig={indConfig}
+    myGoals={myGoals}
+    streak={computeStreak(myData, getProtectedDates(myFreezes))}
+    isPro={isPro}
+    onShowPaywall={() => setShowPaywall(true)}
+    onClose={() => setShowIndividualReport(false)}
+   />
+  )}
+  {showCrewReport && (()=>{
+   const reportCom = (communities||[]).find(c=>c.id===reportCrewId) || communities?.[0];
+   const reportMembers = reportCom ? (communityMembers[reportCom.id]||[]).filter(m=>m.userId||m.id) : [];
+   if(!reportCom||!reportMembers.length) return null;
+   return <CrewReport
+    currentUser={currentUser}
+    crew={reportCom}
+    members={reportMembers}
+    allUsersData={allUsersData}
+    allUserGoals={allUserGoals}
+    industryConfigs={industryConfigs}
+    isPro={isPro}
+    onShowPaywall={() => setShowPaywall(true)}
+    onClose={() => setShowCrewReport(false)}
+   />;
+  })()}
   </ErrorBoundary>
  );
 }
@@ -10019,136 +9859,6 @@ function computePacerWeeklyState(myData, metrics, myGoals, streak) {
 
   return { state, label, weekAvg, prevWeekAvg, trend, daysLogged, daysSinceActive, lastActiveDay };
 }
-
-// ── CrewInviteModal — shown to logged-in users who click a crew invite link ──
-function CrewInviteModal({ invite, token, currentUser, onJoin, onDismiss }) {
- const F = "'DM Sans',system-ui,sans-serif";
- const TA = "var(--accent,#1DC9E8)";
- const TP = "var(--text-primary)";
- const TM = "var(--text-muted)";
- const TD = "var(--text-dim,rgba(255,255,255,0.25))";
- const BG1 = "var(--bg-1,#161b27)";
- const BG2 = "var(--bg-2,#1e2535)";
- const B1  = "var(--border-1)";
-
- const [joining, setJoining] = useState(false);
- const [crewMeta, setCrewMeta] = useState(null);
- const [memberCount, setMemberCount] = useState(null);
- const [loadingMeta, setLoadingMeta] = useState(true);
-
- const crewName = crewMeta?.name || invite?.spaceName || invite?.name || "a Crew";
- const crewDesc = crewMeta?.description || null;
- const isManaged = crewMeta?.crewType === "managed" || invite?.crewType === "managed";
- const industry = crewMeta?.industry || null;
-
- useEffect(() => {
-  async function fetchDetails() {
-   try {
-    const crewId = invite?.spaceId;
-    if (!crewId) { setLoadingMeta(false); return; }
-    const [meta, members] = await Promise.all([
-     loadSpaceMeta(crewId),
-     loadCommunityMembers(crewId).catch(() => []),
-    ]);
-    setCrewMeta(meta);
-    setMemberCount(Array.isArray(members) ? members.length : null);
-   } catch { /* show what we have from invite */ }
-   setLoadingMeta(false);
-  }
-  fetchDetails();
- }, [invite?.spaceId]);
-
- async function handleJoin() {
-  setJoining(true);
-  await onJoin();
-  setJoining(false);
- }
-
- return (
-  <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.82)", zIndex:10000, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
-   <div style={{ background:BG1, border:`1px solid ${B1}`, borderRadius:"22px", width:"100%", maxWidth:"400px", overflow:"hidden" }}>
-
-    {/* Header band */}
-    <div style={{ background:"linear-gradient(135deg,rgba(29,201,232,0.12),rgba(29,201,232,0.03))", borderBottom:`1px solid ${B1}`, padding:"28px 24px 20px", textAlign:"center" }}>
-     <div style={{ fontSize:"2.2rem", marginBottom:"10px" }}>⚡</div>
-     <div style={{ fontSize:"0.72rem", fontWeight:800, color:TA, textTransform:"uppercase", letterSpacing:"0.12em", fontFamily:F, marginBottom:"6px" }}>
-      You've been invited
-     </div>
-     <div style={{ fontSize:"1.25rem", fontWeight:900, color:TP, fontFamily:F, lineHeight:1.2 }}>
-      {crewName}
-     </div>
-     {industry && (
-      <div style={{ fontSize:"0.72rem", color:TM, fontFamily:F, marginTop:"4px" }}>
-       {industry.replace(/_/g," ")}
-      </div>
-     )}
-    </div>
-
-    {/* Crew details */}
-    <div style={{ padding:"20px 24px" }}>
-
-     {loadingMeta ? (
-      <div style={{ textAlign:"center", padding:"12px 0", color:TD, fontSize:"0.78rem", fontFamily:F }}>Loading crew details…</div>
-     ) : (
-      <>
-       {/* Description */}
-       {crewDesc && (
-        <div style={{ fontSize:"0.82rem", color:TM, fontFamily:F, lineHeight:1.5, marginBottom:"16px", background:BG2, border:`1px solid ${B1}`, borderRadius:"10px", padding:"12px 14px" }}>
-         "{crewDesc}"
-        </div>
-       )}
-
-       {/* Stats row */}
-       <div style={{ display:"flex", gap:"10px", marginBottom:"20px" }}>
-        {memberCount !== null && (
-         <div style={{ flex:1, background:BG2, border:`1px solid ${B1}`, borderRadius:"10px", padding:"12px", textAlign:"center" }}>
-          <div style={{ fontSize:"1.3rem", fontWeight:900, color:TP, fontFamily:F }}>{memberCount}</div>
-          <div style={{ fontSize:"0.65rem", color:TD, fontFamily:F, marginTop:"2px" }}>member{memberCount !== 1 ? "s" : ""}</div>
-         </div>
-        )}
-        <div style={{ flex:1, background:BG2, border:`1px solid ${B1}`, borderRadius:"10px", padding:"12px", textAlign:"center" }}>
-         <div style={{ fontSize:"1.3rem", fontWeight:900, color:TP, fontFamily:F }}>{isManaged ? "🎯" : "🔓"}</div>
-         <div style={{ fontSize:"0.65rem", color:TD, fontFamily:F, marginTop:"2px" }}>{isManaged ? "Managed" : "Open crew"}</div>
-        </div>
-        <div style={{ flex:1, background:BG2, border:`1px solid ${B1}`, borderRadius:"10px", padding:"12px", textAlign:"center" }}>
-         <div style={{ fontSize:"1.3rem", fontWeight:900, color:TP, fontFamily:F }}>📊</div>
-         <div style={{ fontSize:"0.65rem", color:TD, fontFamily:F, marginTop:"2px" }}>Shared leaderboard</div>
-        </div>
-       </div>
-
-       {/* What joining means */}
-       <div style={{ background:`${TA}08`, border:`1px solid ${TA}22`, borderRadius:"10px", padding:"12px 14px", marginBottom:"20px" }}>
-        <div style={{ fontSize:"0.7rem", fontWeight:800, color:TA, fontFamily:F, marginBottom:"6px", textTransform:"uppercase", letterSpacing:"0.08em" }}>What you're signing up for</div>
-        <div style={{ fontSize:"0.75rem", color:TM, fontFamily:F, lineHeight:1.6 }}>
-         Your daily activity will be visible to crew members. You'll compete on the leaderboard and can see everyone's streak and progress.
-        </div>
-       </div>
-      </>
-     )}
-
-     {/* Joining as */}
-     <div style={{ fontSize:"0.75rem", color:TD, fontFamily:F, textAlign:"center", marginBottom:"16px" }}>
-      Joining as <strong style={{ color:TM }}>{currentUser.name}</strong>
-     </div>
-
-     {/* Buttons */}
-     <div style={{ display:"flex", flexDirection:"column", gap:"9px" }}>
-      <button onClick={handleJoin} disabled={joining || loadingMeta}
-       style={{ background:`linear-gradient(135deg,${TA},#0EA5C9)`, border:"none", borderRadius:"12px", padding:"15px", fontWeight:900, fontSize:"0.95rem", color:"#000", cursor:(joining||loadingMeta)?"default":"pointer", fontFamily:F, opacity:(joining||loadingMeta)?0.6:1, letterSpacing:"-0.01em" }}>
-       {joining ? "Joining…" : `Join ${crewName} →`}
-      </button>
-      <button onClick={onDismiss}
-       style={{ background:"none", border:`1px solid ${B1}`, borderRadius:"12px", padding:"13px", fontSize:"0.82rem", color:TM, cursor:"pointer", fontFamily:F }}>
-       Not now
-      </button>
-     </div>
-
-    </div>
-   </div>
-  </div>
- );
-}
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ── PacerWorkspaceInsight — persistent mainstay on the workspace screen ──────
@@ -11559,6 +11269,7 @@ ${text}` }], max_tokens: 80, call_type: "pacer" })
 
   // ── Micro-toast helper ───────────────────────────────────────────────────
   function showMicroToast(text, duration = 4500) {
+   showMicroToastRef.current = showMicroToast; // keep ref current
     setMicroToast(text);
     clearTimeout(microToastTimer.current);
     microToastTimer.current = setTimeout(() => setMicroToast(null), duration);
@@ -12252,7 +11963,7 @@ ${text}` }], max_tokens: 80, call_type: "pacer" })
           )}
 
           {/* Usage bar — free users near/at limit */}
-          
+          <PacerUsageBar onUpgradeClick={() => onShowPaywall?.()} />
           {/* Input — padding accounts for safe area on mobile */}
           <div style={{
             padding: isMobileDevice
@@ -12648,8 +12359,7 @@ function HomeScreen({ currentUser, myData, indConfig, myGoals, activeTrack,
   const streakVal = computeStreak(myData)?.current || 0;
   const newFeed = feedActivitySince;
 
-  const ws = (label, detail, urgent=false) => ({ id:"tracker", icon:"⚡", label, actionKey:"tracker", urgent, detail });
-  const tr = (label, detail, urgent=false) => ({ id:"tracker", icon:"📊", label, actionKey:"tracker", urgent, detail });
+  const ws = (label, detail, urgent=false) => ({ id:"workspace", icon:"⚡", label, actionKey:"workspace", urgent, detail });
   const jn = (label, detail) => ({ id:"journal", icon:"📓", label, actionKey:"journal", urgent:false, detail });
   const hi = (label) => ({ id:"history", icon:"📈", label, actionKey:"history", urgent:false });
   const cm = () => ({ id:"community", icon:"👥", label:`${newFeed} new post${newFeed>1?"s":""}`, actionKey:"community", urgent:false });
@@ -12670,10 +12380,10 @@ function HomeScreen({ currentUser, myData, indConfig, myGoals, activeTrack,
   if (h < 9) {
    if (isMobile) {
     // Mobile morning: plan + check in on crew
-    return { headline: "Morning.", subline: streakVal>1 ? `${streakVal} days going.` : "New day.", tiles: [jn("Set an intention"), ...(newFeed>0?[cm()]:[tr("Start logging")]) ] };
+    return { headline: "Morning.", subline: streakVal>1 ? `${streakVal} days going.` : "New day.", tiles: [jn("Set an intention"), ...(newFeed>0?[cm()]:[ws("Start logging")]) ] };
    }
    // Desktop morning: get to work
-   return { headline: "Day's wide open.", subline: streakVal>1 ? `${streakVal} days going.` : "Fresh start.", tiles: [tr("Start logging"), jn("Set an intention"), ...(newFeed>0?[cm()]:[]) ] };
+   return { headline: "Day's wide open.", subline: streakVal>1 ? `${streakVal} days going.` : "Fresh start.", tiles: [ws("Start logging"), jn("Set an intention"), ...(newFeed>0?[cm()]:[]) ] };
   }
   if (h >= 21) {
    if (isMobile) {
@@ -12692,32 +12402,31 @@ function HomeScreen({ currentUser, myData, indConfig, myGoals, activeTrack,
   // Work hours — desktop: urgency. Mobile: check in + social.
   if (pct !== null && pct < 40 && h >= 14) {
    if (isMobile) {
-    return { headline: `${pct}% — still time.`, subline: "Log something. Protect the day.", tiles: [tr("Log now", null, true), ...(newFeed>0?[cm()]:[]) ] };
+    return { headline: `${pct}% — still time.`, subline: "Log something. Protect the day.", tiles: [ws("Log now", null, true), ...(newFeed>0?[cm()]:[]) ] };
    }
-   return { headline: `${pct}% — behind with ${18-h}h left.`, subline: "Time to push.", tiles: [tr("Catch up now", null, true), ...(newFeed>0?[cm()]:[hi("See where you stand")]) ] };
+   return { headline: `${pct}% — behind with ${18-h}h left.`, subline: "Time to push.", tiles: [ws("Catch up now", null, true), ...(newFeed>0?[cm()]:[hi("See where you stand")]) ] };
   }
   if (pct !== null && pct >= 100) {
    if (isMobile) {
-    return { headline: "Goals hit. 🎯", subline: "See how your crew's doing.", tiles: [...(newFeed>0?[cm()]:[jn("Reflect on what worked")]), tr("Keep logging")] };
+    return { headline: "Goals hit. 🎯", subline: "See how your crew's doing.", tiles: [...(newFeed>0?[cm()]:[jn("Reflect on what worked")]), ws("Keep logging")] };
    }
-   return { headline: "Goals hit.", subline: "Keep going or write it down.", tiles: [tr("Keep logging"), jn("Reflect on what worked")] };
+   return { headline: "Goals hit.", subline: "Keep going or write it down.", tiles: [ws("Keep logging"), jn("Reflect on what worked")] };
   }
   if (pct !== null && pct >= 70) {
-   return { headline: `${pct}% — closing in.`, subline: "Don't let up.", tiles: [tr("Finish strong", null, true), ...(newFeed>0?[cm()]:[]) ] };
+   return { headline: `${pct}% — closing in.`, subline: "Don't let up.", tiles: [ws("Finish strong", null, true), ...(newFeed>0?[cm()]:[]) ] };
   }
   if (isMobile) {
    // Mobile default during work hours: softer, social-aware
-   return { headline: pct !== null ? `${pct}% today.` : "Hey.", subline: streakVal > 1 ? `${streakVal}-day streak.` : "Ready when you are.", tiles: [...(newFeed>0?[cm()]:[jn("Check in")]), tr("Log activity")] };
+   return { headline: pct !== null ? `${pct}% today.` : "Hey.", subline: streakVal > 1 ? `${streakVal}-day streak.` : "Ready when you are.", tiles: [...(newFeed>0?[cm()]:[jn("Check in")]), ws("Log activity")] };
   }
   // Desktop default: work focus
-  return { headline: pct !== null ? `${pct}% today.` : "Ready when you are.", subline: streakVal > 1 ? `${streakVal}-day streak.` : "Let's go.", tiles: [tr("Log activity"), ...(newFeed>0?[cm()]:[hi("View history")]) ] };
+  return { headline: pct !== null ? `${pct}% today.` : "Ready when you are.", subline: streakVal > 1 ? `${streakVal}-day streak.` : "Let's go.", tiles: [ws("Log activity"), ...(newFeed>0?[cm()]:[hi("View history")]) ] };
  }
 
  function handleCommandTile(tile) {
   haptic.medium();
   const key = tile.actionKey;
-  if (key === "workspace") onNavigate("tracker");
-  else if (key === "tracker")   onNavigate("tracker");
+  if (key === "workspace") onNavigate("workspace");
   else if (key === "journal")   onNavigate("journal");
   else if (key === "history")   onNavigate("history");
   else if (key === "community") { storageSet(ns(lastFeedVisitKey), Date.now().toString()).catch(()=>{}); setFeedActivitySince(0); onNavigate("crews"); }
@@ -13025,7 +12734,7 @@ Under 260 words. Direct. No disclaimers. No "based on my knowledge" hedges.`;
       : todayPct === 0 ? "Start Logging →"
       : "Keep Going →";
      return (
-      <button onClick={() => onNavigate("tracker")}
+      <button onClick={() => onNavigate("workspace")}
        style={{ marginTop: "14px", width: "100%", background: "linear-gradient(135deg,#1DC9E8 0%,#0EA5C9 100%)", color: "#000", border: "none", padding: "14px 20px", borderRadius: "12px", fontWeight: "900", fontSize: "1rem", cursor: "pointer", fontFamily: F, letterSpacing: "-0.01em", boxShadow: "0 3px 14px rgba(29,201,232,0.25)", WebkitTapHighlightColor: "transparent" }}>
        {label}
       </button>
@@ -13981,6 +13690,119 @@ Rules:
 }
 
 // ── Crew Stats — collective identity numbers ─────────────────────────
+// ── CrewScoreboard — today's numbers for every member, sorted by goal % ──────
+function CrewScoreboard({ members, allUsersData, allUserGoals, industryConfigs, currentUser }) {
+  const F = "'DM Sans',system-ui,sans-serif";
+  const TA = "var(--accent,#1DC9E8)";
+  const TP = "var(--text-primary)";
+  const TM = "var(--text-muted)";
+  const TD = "var(--text-dim,rgba(255,255,255,0.25))";
+  const today = todayStr();
+
+  // Build a row per member
+  const rows = members.map(m => {
+    const uid       = m.userId || m.id;
+    const name      = m.name || "Unknown";
+    const allData   = allUsersData[uid] || {};
+    const goals     = allUserGoals[uid] || {};
+    const todayData = allData[today] || {};
+    const industry  = m.industry;
+    const cfg       = industryConfigs[industry] || Object.values(industryConfigs || {})[0] || {};
+    const metrics   = (cfg.weekdayMetrics || []).filter(m => (goals[m.key] ?? m.defaultGoal ?? 0) > 0);
+    const pct       = metrics.length ? computeGoalPct(todayData, metrics, goals) : 0;
+    const streak    = computeStreak(allData).current || 0;
+    const isMe      = uid === (currentUser?.id);
+
+    return { uid, name, metrics, todayData, goals, pct, streak, isMe };
+  });
+
+  // Sort: goal % descending, ties broken by streak
+  rows.sort((a, b) => b.pct - a.pct || b.streak - a.streak);
+
+  if (!rows.length) return null;
+
+  const MEMBER_COLORS = ["#1DC9E8","#A855F7","#F97316","#4ACF86","#F59E0B","#E05577","#3B82F6","#EC4899"];
+
+  return (
+    <div style={{ background: "var(--bg-1)", border: "1px solid var(--border-1)", borderRadius: "14px", overflow: "hidden" }}>
+      {/* Header */}
+      <div style={{ padding: "11px 14px 9px", borderBottom: "1px solid var(--border-1)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ fontSize: "0.62rem", fontWeight: "800", color: TD, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: F }}>
+          Today's Numbers
+        </div>
+        <div style={{ fontSize: "0.62rem", color: TD, fontFamily: F }}>{today}</div>
+      </div>
+
+      {/* Member rows */}
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        {rows.map((row, idx) => {
+          const color = MEMBER_COLORS[idx % MEMBER_COLORS.length];
+          const initials = row.name.trim().split(" ").map(w => w[0]).join("").toUpperCase().slice(0,2);
+          const pctColor = row.pct >= 100 ? "#4ACF86" : row.pct >= 60 ? TA : row.pct > 0 ? TM : TD;
+          const hasData  = row.metrics.some(m => (row.todayData[m.key] || 0) > 0);
+
+          return (
+            <div key={row.uid}
+              style={{
+                padding: "12px 14px",
+                borderBottom: idx < rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                background: row.isMe ? "rgba(29,201,232,0.03)" : "none",
+              }}>
+              {/* Name row */}
+              <div style={{ display: "flex", alignItems: "center", gap: "9px", marginBottom: row.metrics.length ? "9px" : "0" }}>
+                {/* Avatar */}
+                <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: `${color}22`, border: `1px solid ${color}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.65rem", fontWeight: "800", color, flexShrink: 0, fontFamily: F }}>
+                  {initials}
+                </div>
+                {/* Name + streak */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ fontSize: "0.85rem", fontWeight: row.isMe ? "800" : "700", color: row.isMe ? TP : TM, fontFamily: F, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {row.name.split(" ")[0]}{row.isMe ? " (you)" : ""}
+                    </span>
+                    {row.streak > 0 && (
+                      <span style={{ fontSize: "0.62rem", color: "#F59E0B", fontWeight: "700", flexShrink: 0 }}>🔥{row.streak}d</span>
+                    )}
+                  </div>
+                </div>
+                {/* Overall % */}
+                <div style={{ fontSize: "0.85rem", fontWeight: "900", color: pctColor, fontFamily: F, flexShrink: 0 }}>
+                  {hasData ? `${row.pct}%` : <span style={{ fontSize: "0.7rem", color: TD, fontWeight: "500" }}>—</span>}
+                </div>
+              </div>
+
+              {/* Metric bars */}
+              {row.metrics.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "5px", paddingLeft: "37px" }}>
+                  {row.metrics.map(m => {
+                    const goal = goals[m.key] ?? m.defaultGoal ?? 0;
+                    const val  = row.todayData[m.key] || 0;
+                    const pct  = goal > 0 ? Math.min(100, Math.round((val / goal) * 100)) : 0;
+                    const barColor = pct >= 100 ? "#4ACF86" : m.color || color;
+                    return (
+                      <div key={m.key}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "3px" }}>
+                          <span style={{ fontSize: "0.65rem", color: TD, fontFamily: F }}>{m.short || m.label}</span>
+                          <span style={{ fontSize: "0.68rem", fontWeight: "700", color: pct >= 100 ? "#4ACF86" : TP, fontFamily: F }}>
+                            {val}<span style={{ fontWeight: "400", color: TD }}>/{goal}</span>
+                          </span>
+                        </div>
+                        <div style={{ height: "3px", background: "var(--bg-3,rgba(255,255,255,0.06))", borderRadius: "2px", overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: barColor, borderRadius: "2px", transition: "width 0.5s ease" }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function GuildStats({ members, allUsersData, allUserGoals, industryConfigs, presenceMap }) {
   const F = "'DM Sans',system-ui,sans-serif";
   const today = todayStr();
@@ -14690,7 +14512,8 @@ function CommunitiesView({ currentUser, users, allUsersData, allUserGoals, indus
                 <>
                   <button onClick={() => setShowShareCard(v => !v)}
                     style={{ background: "none", border: "1px solid var(--border-1)", color: "var(--text-muted)", padding: "6px 10px", borderRadius: "8px", fontSize: "0.75rem", cursor: "pointer", fontFamily: F }}>🔗 Share</button>
-                  
+                  <button onClick={() => { setReportCrewId(activeCom?.id || null); setShowCrewReport(true); }}
+                    style={{ background: "none", border: "1px solid var(--border-1)", color: "var(--text-muted)", padding: "6px 10px", borderRadius: "8px", fontSize: "0.75rem", cursor: "pointer", fontFamily: F }}>📊 Report</button>
                 </>
               )}
               <button onClick={() => switchTab("feed")}
@@ -14772,6 +14595,15 @@ function CommunitiesView({ currentUser, users, allUsersData, allUserGoals, indus
           {activeMembers.length <= 2 && (
             <CommunityInviteButton communityId={activeCom.id} communityName={activeCom.name} userName={currentUser?.name || ""} />
           )}
+
+          {/* ── Scoreboard — today's numbers, everyone, sorted by goal % ── */}
+          <CrewScoreboard
+            members={activeMembers}
+            allUsersData={allUsersData}
+            allUserGoals={allUserGoals}
+            industryConfigs={industryConfigs}
+            currentUser={currentUser}
+          />
 
           {/* ── Crew Stats ── */}
           <GuildStats
