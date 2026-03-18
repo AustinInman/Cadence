@@ -7659,7 +7659,12 @@ export default function App({ authUser, pendingInvite = null, isNewUser = false 
    setTimeout(() => fireOnboardPrompts(nu), 1500);
    return; // new users get onboarding prompts, not daily nudge
   }
-  if(lu.length > 0) { setModal("setup"); } else { setModal("onboarding"); }
+  // Auth flow complete but no profile matched — auto-select first user rather than showing setup modal
+  if(lu.length > 0) {
+   const autoUser = lu.find(u => u.authUid === authUser?.id) || lu[0];
+   await loginAs(autoUser, null, null, industryConfigs);
+   setModal(null);
+  } else { setModal("onboarding"); }
   setLoading(false);
  }
 
@@ -7861,8 +7866,8 @@ export default function App({ authUser, pendingInvite = null, isNewUser = false 
   const loadedPins = await loadPins();
   // Find the user in newly loaded state via the returned list
   const lu = await loadUsers();
-  const found = lu.find(u=>u.id===userId);
-  if(!found) { setModal("setup"); setLoading(false); return; }
+  const found = lu.find(u=>u.id===userId) || lu[0];
+  if(!found) { setModal("onboarding"); setLoading(false); return; }
   if(loadedPins[userId]) {
    setPinTarget(found);
    setModal("pin");
@@ -8715,7 +8720,6 @@ export default function App({ authUser, pendingInvite = null, isNewUser = false 
     onJoinOrg={joinOrg}
     onSignOut={async()=>{ await window._sb?.auth?.signOut(); window.location.reload(); }}
    />}
-   {modal==="setup"&&<UserSetupModal existingUsers={users} admins={admins} teams={teams} industryConfigs={industryConfigs} superAdminId={superAdmin} onSelect={selectUser} onCreateNew={(n,ind,pin,leaderId)=>createUser(n,ind,users.length===0&&ind==="freight",pin,leaderId)} onCreateNewIndustry={createUserWithNewIndustry}/>}
    {modal==="import"&&<BulkImportModal onClose={()=>setModal(null)} onImport={doBulkImport} industryConfig={indConfig}/>
    }{modal==="backup"&&currentUser&&<DataBackupModal allData={myData} onImportData={doDataImport} onClose={()=>setModal(null)}/>}
    {modal==="share"&&currentUser&&<ShareModal userName={currentUser.name} allData={myData} liveCounts={counts} industryConfig={indConfig} userGoals={myGoals} selDate={selDate} onClose={()=>setModal(null)}/>}
