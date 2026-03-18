@@ -6362,7 +6362,7 @@ function SideNav({ view, navigateTo, currentUser, orgId, communities, messaging,
        {/* Communities sub-tabs */}
        {item.isComGroup && isComActive && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1px", paddingLeft: "8px", marginTop: "2px", marginBottom: "4px" }}>
-         {[["dashboard","\u{1F4CA}","Dashboard"],["feed","\u{1F4E3}","Pulse"],["compete","\u26A1","Compete"],["members","\u{1F465}","Members"]].map(([k,icon,label]) =>
+         {[["dashboard","\u{1F4CA}","Dashboard"],["feed","\u{1F4E3}","Pulse"],["members","\u{1F465}","Members"]].map(([k,icon,label]) =>
           subBtn(k, icon, label, comTab===k, () => setComTab && setComTab(k))
          )}
         </div>
@@ -8749,7 +8749,7 @@ ${text}
     />
    )}
 
-   {modal==="edit"&&editDate&&<EditDayModal&&editDate&&<EditDayModal date={editDate} initialData={editDate===todayStr()?{...counts,_notes:notes}:myData[editDate]||{}} industryConfig={indConfig} onClose={()=>{setModal(null);setEditDate(null);}} onSave={data=>{haptic.success();commitEdit(editDate,data);}}/>}
+   {modal==="edit"&&editDate&&<EditDayModal date={editDate} initialData={editDate===todayStr()?{...counts,_notes:notes}:myData[editDate]||{}} industryConfig={indConfig} onClose={()=>{setModal(null);setEditDate(null);}} onSave={data=>{haptic.success();commitEdit(editDate,data);}}/>}
 
    <div style={{...s.container, transform: pullY > 0 ? `translateY(${pullY}px)` : undefined, transition: pullY === 0 && !pullRefreshing ? "transform 0.3s ease" : undefined }}
     onTouchStart={isMobile ? onPullTouchStart : undefined}
@@ -8866,7 +8866,7 @@ ${text}
     )}
     {currentUser && view === "org" && !orgId?.startsWith("solo-") && (
      <div style={{ display:"flex", gap:"4px", padding:"0 0 14px 0", overflowX:"auto", WebkitOverflowScrolling:"touch", scrollbarWidth:"none", msOverflowStyle:"none" }}>
-      {[["dashboard","Dashboard"],["leaderboard","Leaderboard"],["compete","Compete"],["members","Members"]].map(([t,label]) => {
+      {[["dashboard","Dashboard"],["feed","Pulse"],["members","Members"]].map(([t,label]) => {
        const active = comTab === t;
        return (
         <button key={t} onClick={() => setComTab(t)}
