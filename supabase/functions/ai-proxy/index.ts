@@ -117,23 +117,8 @@ Deno.serve(async (req: Request) => {
 
     const callCost = MODEL_COST[model] ?? 1;
 
-    // Check if they'd exceed their limit (skip for onboarding calls)
-    if (!isOnboardingCall && totalUsed + callCost > creditLimit) {
-      return new Response(
-        JSON.stringify({
-          error: "usage_limit_reached",
-          message: "You've reached your monthly Pacer limit.",
-          credits_used: totalUsed,
-          credits_limit: creditLimit,
-          plan: plan,
-          upgrade_required: plan === "free",
-        }),
-        {
-          status: 429,
-          headers: { ...CORS, "Content-Type": "application/json" },
-        }
-      );
-    }
+    // Usage limits removed — all users get unlimited AI access
+    // (still tracking usage in ai_usage table for visibility)
 
     // ── 4. Forward to Anthropic ─────────────────────────────────────────────
     const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
