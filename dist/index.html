@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Responsive viewport — no zoom lock on desktop -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Cadence — Sales Execution Tool</title>
+
+    <!-- ── PWA Meta ── -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#23CDED" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- Favicon — true PNG files (v3) -->
+    <link rel="icon" href="/icons/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=4" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/icons/favicon-64.png?v=4" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png?v=4" />
+    <link rel="shortcut icon" href="/icons/favicon-32.png?v=4" />
+
+    <!-- ── Apple / iOS PWA ── -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Cadence" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png?v=4" />
+
+    <!-- ── SEO ── -->
+    <meta name="description" content="The sales execution tool built for accountability. Track dials, plan your week, and close more." />
+    <meta name="keywords" content="sales tracker, accountability, daily activity, leaderboard, community, goal tracking" />
+
+    <!-- ── Open Graph (Facebook, iMessage, WhatsApp, LinkedIn) ── -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Cadence — Sales Execution Tool" />
+    <meta property="og:description" content="Track your dials, plan your week, and stay accountable. Built for salespeople who want to close more." />
+    <meta property="og:image" content="/icons/icon-512.png" />
+    <meta property="og:url" content="https://getcadence.net" />
+    <meta property="og:site_name" content="Cadence" />
+
+    <!-- ── Twitter Card ── -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Cadence — Sales Execution Tool" />
+    <meta name="twitter:description" content="Track your dials, plan your week, and stay accountable. Built for salespeople who want to close more." />
+    <meta name="twitter:image" content="/icons/icon-512.png" />
+
+    <!-- ── Inter font — modern, highly legible ── -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      html {
+        /* Aggressive scaling: 16px on mobile → 18px on 1440p → 21px on 4K */
+        font-size: 16px;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+      }
+      html, body { width: 100%; height: 100%; min-height: -webkit-fill-available; background: #080C18; }
+      body.light-mode { background: #EEF2FA; }
+      body {
+        overscroll-behavior: none;
+        -webkit-overflow-scrolling: touch;
+        font-family: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+      #root { width: 100%; min-height: 100%; padding-top: env(safe-area-inset-top); display: block; }
+      input, button, textarea, select { font-family: inherit; font-size: max(16px, 1em); }
+      /* Prevent iOS zoom on focus for inputs smaller than 16px */
+      @media (max-width: 600px) {
+        input, textarea, select { font-size: 16px !important; touch-action: manipulation; }
+        button { touch-action: manipulation; }
+      }
+      /* Better touch targets */
+      button, [role="button"] { min-height: 36px; }
+      :focus-visible { outline: 2px solid var(--accent, #23CDED); outline-offset: 2px; }
+      /* Scrollbars */
+      /* Hide scrollbars on nav/tab overflow containers */
+        .tab-scroll::-webkit-scrollbar { display: none; }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #2A3548; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: #384560; }
+      body.light-mode ::-webkit-scrollbar-thumb { background: #A8B8E0; }
+      body.light-mode ::-webkit-scrollbar-thumb:hover { background: #8899BB; }
+    </style>
+
+    <!-- ── Theme init — runs before React to prevent flash of wrong theme ── -->
+    <script>
+      try {
+        const dark = localStorage.getItem("cadence-dark-mode");
+        // Default is dark (null = first visit = dark mode)
+        if(dark === "false") document.body.classList.add("light-mode");
+      } catch(e) {}
+    </script>
+
+    <!-- Supabase JS client (loaded from CDN, no npm install needed) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script type="module" crossorigin src="/assets/index-DyHdH3mi.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- ── Register Service Worker ── -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('[SW] Registered:', reg.scope))
+            .catch(err => console.warn('[SW] Registration failed:', err));
+        });
+      }
+    </script>
+  </body>
+</html>

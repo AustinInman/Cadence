@@ -1,0 +1,53 @@
+{
+  "name": "Cadence",
+  "short_name": "Cadence",
+  "description": "Sales execution tool — by Inman Group LLC",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080C18",
+  "theme_color": "#23CDED",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/favicon.ico",
+      "sizes": "16x16 32x32",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/icons/cadence-logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": [
+    "productivity",
+    "business"
+  ],
+  "shortcuts": [
+    {
+      "name": "Start Session",
+      "short_name": "Session",
+      "url": "/",
+      "description": "Start a Focus Session"
+    },
+    {
+      "name": "The Board",
+      "short_name": "Board",
+      "url": "/?view=planner",
+      "description": "Plan your week"
+    }
+  ]
+}
