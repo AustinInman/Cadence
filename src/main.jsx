@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import LandingPage from "./LandingPage";
 import ReactDOM from "react-dom/client";
 import App from "./ActivityTracker";
 
@@ -11,7 +10,7 @@ window._sb = window.supabase.createClient(
 
 const sb = window._sb;
 
-// ── Shared styles ─────────────────────────────────────────────────────
+// ── Shared styles ─────────────────────────────────────────────────────────────
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap');
   * { box-sizing: border-box; }
@@ -20,9 +19,7 @@ const CSS = `
     from { opacity: 0; transform: translateY(14px); }
     to   { opacity: 1; transform: translateY(0); }
   }
-  @keyframes fadeIn {
-    from { opacity: 0; } to { opacity: 1; }
-  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes pulse-ring {
     0%   { transform: scale(1); opacity: 0.5; }
     100% { transform: scale(2.4); opacity: 0; }
@@ -31,32 +28,19 @@ const CSS = `
     0%   { background-position: -200% center; }
     100% { background-position:  200% center; }
   }
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-  @keyframes checkIn {
-    0%   { transform: scale(0) rotate(-10deg); opacity: 0; }
-    60%  { transform: scale(1.15) rotate(2deg); opacity: 1; }
-    100% { transform: scale(1) rotate(0deg); opacity: 1; }
-  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   .auth-wrap {
-    min-height: 100vh;
-    background: #080C18;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    min-height: 100vh; background: #080C18;
+    display: flex; align-items: center; justify-content: center;
     font-family: 'DM Sans', system-ui, sans-serif;
-    padding: 24px;
-    position: relative;
-    overflow: hidden;
+    padding: 24px; position: relative; overflow: hidden;
   }
   .bg-orb {
     position: fixed; pointer-events: none; z-index: 0;
     width: 700px; height: 700px; border-radius: 50%;
     background: radial-gradient(circle, rgba(29,201,232,0.055) 0%, transparent 65%);
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
   }
   .bg-grid {
     position: fixed; inset: 0; pointer-events: none; z-index: 0;
@@ -66,11 +50,7 @@ const CSS = `
     background-size: 52px 52px;
     mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 20%, transparent 100%);
   }
-  .card {
-    width: 100%; max-width: 360px;
-    position: relative; z-index: 1;
-    animation: fadeUp 0.45s ease both;
-  }
+  .card { width: 100%; max-width: 380px; position: relative; z-index: 1; animation: fadeUp 0.45s ease both; }
 
   .r1 { animation: fadeUp 0.45s 0.05s ease both; opacity: 0; }
   .r2 { animation: fadeUp 0.45s 0.12s ease both; opacity: 0; }
@@ -87,29 +67,21 @@ const CSS = `
     font-weight: 700; font-size: 0.94rem; cursor: pointer;
     display: flex; align-items: center; justify-content: center; gap: 10px;
     transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
-    letter-spacing: -0.01em;
   }
   .google-btn:hover { opacity: 0.93; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
   .google-btn:active { transform: translateY(0); box-shadow: none; }
 
   .field {
-    width: 100%;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    color: #E8EDF8;
-    padding: 13px 16px;
-    border-radius: 12px;
+    width: 100%; background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08); color: #E8EDF8;
+    padding: 13px 16px; border-radius: 12px;
     font-family: 'DM Sans', system-ui, sans-serif;
-    font-size: 0.94rem;
-    outline: none;
-    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
-    letter-spacing: -0.01em;
-    display: block;
+    font-size: 0.94rem; outline: none;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s; display: block;
   }
   .field::placeholder { color: rgba(255,255,255,0.18); }
   .field:focus {
-    border-color: rgba(29,201,232,0.4);
-    background: rgba(29,201,232,0.03);
+    border-color: rgba(29,201,232,0.4); background: rgba(29,201,232,0.03);
     box-shadow: 0 0 0 3px rgba(29,201,232,0.08);
   }
 
@@ -118,59 +90,33 @@ const CSS = `
     padding: 14px 20px; border-radius: 12px;
     font-family: 'DM Sans', system-ui, sans-serif;
     font-weight: 800; font-size: 0.94rem; cursor: pointer;
-    letter-spacing: -0.01em;
     transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
   }
-  .primary-btn:not(:disabled):hover {
-    opacity: 0.9; transform: translateY(-1px);
-    box-shadow: 0 8px 24px rgba(29,201,232,0.25);
-  }
+  .primary-btn:not(:disabled):hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(29,201,232,0.25); }
   .primary-btn:not(:disabled):active { transform: translateY(0); box-shadow: none; }
   .primary-btn:disabled { opacity: 0.3; cursor: default; }
   .primary-btn.loading {
     background: linear-gradient(90deg, #1DC9E8 0%, #7B6FD8 50%, #1DC9E8 100%);
-    background-size: 200% auto;
-    animation: shimmer 1.2s linear infinite;
-    opacity: 1 !important;
+    background-size: 200% auto; animation: shimmer 1.2s linear infinite; opacity: 1 !important;
   }
 
   .ghost-btn {
     background: none; border: none; cursor: pointer;
     font-family: 'DM Sans', system-ui, sans-serif;
     font-size: 0.82rem; font-weight: 600;
-    color: rgba(255,255,255,0.3);
-    letter-spacing: -0.01em;
-    transition: color 0.15s;
-    padding: 0;
+    color: rgba(255,255,255,0.3); transition: color 0.15s; padding: 0;
   }
   .ghost-btn:hover { color: rgba(255,255,255,0.6); }
 
-  .accent-btn {
-    background: none; border: none; cursor: pointer;
-    font-family: 'DM Sans', system-ui, sans-serif;
-    font-size: 0.82rem; font-weight: 700;
-    color: #1DC9E8;
-    letter-spacing: -0.01em;
-    transition: opacity 0.15s;
-    padding: 0;
-  }
-  .accent-btn:hover { opacity: 0.75; }
-
   .err-box {
-    font-size: 0.8rem; color: #F43F5E;
-    padding: 9px 13px;
-    background: rgba(244,63,94,0.07);
-    border: 1px solid rgba(244,63,94,0.18);
-    border-radius: 9px; line-height: 1.5;
-    margin-bottom: 10px;
+    font-size: 0.8rem; color: #F43F5E; padding: 9px 13px;
+    background: rgba(244,63,94,0.07); border: 1px solid rgba(244,63,94,0.18);
+    border-radius: 9px; line-height: 1.5; margin-bottom: 10px;
   }
   .ok-box {
-    font-size: 0.8rem; color: #1DC9E8;
-    padding: 9px 13px;
-    background: rgba(29,201,232,0.07);
-    border: 1px solid rgba(29,201,232,0.2);
-    border-radius: 9px; line-height: 1.5;
-    margin-bottom: 10px;
+    font-size: 0.8rem; color: #1DC9E8; padding: 9px 13px;
+    background: rgba(29,201,232,0.07); border: 1px solid rgba(29,201,232,0.2);
+    border-radius: 9px; line-height: 1.5; margin-bottom: 10px;
   }
 
   .tab-row {
@@ -180,8 +126,7 @@ const CSS = `
   .tab {
     flex: 1; padding: 9px; border: none; border-radius: 8px; cursor: pointer;
     font-family: 'DM Sans', system-ui, sans-serif;
-    font-size: 0.86rem; font-weight: 700; letter-spacing: -0.01em;
-    transition: all 0.15s;
+    font-size: 0.86rem; font-weight: 700; transition: all 0.15s;
   }
   .tab.active { background: #1DC9E8; color: #000; }
   .tab.inactive { background: none; color: rgba(255,255,255,0.3); }
@@ -198,6 +143,9 @@ const CSS = `
   .pw-toggle:hover { color: rgba(255,255,255,0.5); }
 `;
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const F = "'DM Sans', system-ui, sans-serif";
+
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" style={{ flexShrink: 0 }}>
     <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
@@ -207,19 +155,16 @@ const GoogleIcon = () => (
   </svg>
 );
 
-const Logo = ({ onClick }) => (
-  <div style={{ textAlign: "center", marginBottom: "40px", cursor: onClick ? "pointer" : "default" }} onClick={onClick}>
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginBottom: "8px" }}>
+const Logo = () => (
+  <div style={{ textAlign: "center", marginBottom: "36px" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginBottom: "6px" }}>
       <div style={{ position: "relative", width: "8px", height: "8px", flexShrink: 0 }}>
         <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "#1DC9E8", animation: "pulse-ring 2s ease-out infinite" }} />
         <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#1DC9E8", position: "relative" }} />
       </div>
-      <span style={{ fontFamily: "'Syne', 'DM Sans', sans-serif", fontWeight: 800, fontSize: "1.05rem", letterSpacing: "0.24em", color: "#fff", textTransform: "uppercase" }}>
+      <span style={{ fontFamily: "'Syne','DM Sans',sans-serif", fontWeight: 800, fontSize: "1.05rem", letterSpacing: "0.24em", color: "#fff", textTransform: "uppercase" }}>
         Cadence
       </span>
-    </div>
-    <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.22)", letterSpacing: "0.01em", fontWeight: 500 }}>
-      Do more, together.
     </div>
   </div>
 );
@@ -232,10 +177,10 @@ const Divider = () => (
   </div>
 );
 
-// ── Forgot password screen ────────────────────────────────────────────
-function ForgotScreen({ onBack, onShowLanding }) {
+// ── ForgotScreen ──────────────────────────────────────────────────────────────
+function ForgotScreen({ onBack }) {
   const [email, setEmail] = useState("");
-  const [state, setState] = useState("idle"); // idle | sending | sent | error
+  const [state, setState] = useState("idle");
   const [errMsg, setErrMsg] = useState("");
   const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -252,16 +197,11 @@ function ForgotScreen({ onBack, onShowLanding }) {
 
   return (
     <div style={{ animation: "fadeIn 0.25s ease both" }}>
-      <Logo onClick={onShowLanding} />
+      <Logo />
       <div style={{ marginBottom: "24px" }}>
-        <div style={{ fontSize: "1rem", fontWeight: "700", color: "#fff", letterSpacing: "-0.02em", marginBottom: "6px" }}>
-          Reset your password
-        </div>
-        <div style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.3)", lineHeight: 1.6 }}>
-          Enter your email and we'll send a reset link.
-        </div>
+        <div style={{ fontSize: "1rem", fontWeight: 700, color: "#fff", marginBottom: "6px" }}>Reset your password</div>
+        <div style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.3)", lineHeight: 1.6 }}>Enter your email and we'll send a reset link.</div>
       </div>
-
       {state === "sent" ? (
         <>
           <div className="ok-box">Reset link sent to <strong>{email}</strong> — check your inbox.</div>
@@ -285,10 +225,138 @@ function ForgotScreen({ onBack, onShowLanding }) {
   );
 }
 
-// ── Main auth screen ──────────────────────────────────────────────────
-function AuthScreen({ onShowLanding, initialTab = "login" }) {
-  const [tab, setTab] = useState(initialTab); // login | signup
-  const [screen, setScreen] = useState("main"); // main | forgot
+// ── InviteScreen — shown when visiting /invite/:token ─────────────────────────
+function InviteScreen({ invite, token, onSignedIn }) {
+  const [tab, setTab] = useState("signup");
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errMsg, setErrMsg] = useState("");
+
+  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const canSubmit = isValidEmail && pw.length >= 1 && !loading;
+
+  async function handleGoogle() {
+    setLoading(true);
+    // Store token so app can pick it up after OAuth redirect
+    sessionStorage.setItem("cadence-pending-invite", token);
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) { setErrMsg(error.message); setLoading(false); }
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setErrMsg("");
+    if (tab === "signup") {
+      if (pw.length < 8) { setErrMsg("Password must be at least 8 characters."); return; }
+      if (pw !== pw2) { setErrMsg("Passwords don't match."); return; }
+    }
+    setLoading(true);
+    if (tab === "login") {
+      const { error } = await sb.auth.signInWithPassword({ email, password: pw });
+      setLoading(false);
+      if (error) { setErrMsg("Wrong email or password."); return; }
+      // Existing user — join crew immediately, no tour
+      onSignedIn({ isNewUser: false, token });
+    } else {
+      const { error } = await sb.auth.signUp({ email, password: pw });
+      setLoading(false);
+      if (error) {
+        if (error.message.toLowerCase().includes("already")) {
+          setErrMsg("Account already exists — log in instead.");
+          setTab("login");
+        } else { setErrMsg(error.message); }
+        return;
+      }
+      const { error: signInErr } = await sb.auth.signInWithPassword({ email, password: pw });
+      if (signInErr) { setErrMsg("Account created — check your email to confirm, then log in."); return; }
+      // New user — trigger onboarding tour with crew join
+      onSignedIn({ isNewUser: true, token });
+    }
+  }
+
+  return (
+    <div className="auth-wrap">
+      <style>{CSS}</style>
+      <div className="bg-orb" /><div className="bg-grid" />
+      <div className="card">
+        <div className="r1"><Logo /></div>
+
+        {/* Invite context card */}
+        <div className="r2" style={{ marginBottom: "24px", background: "rgba(29,201,232,0.06)", border: "1px solid rgba(29,201,232,0.2)", borderRadius: "14px", padding: "16px 18px" }}>
+          <div style={{ fontSize: "0.72rem", fontWeight: 800, color: "rgba(29,201,232,0.7)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "6px" }}>
+            You've been invited
+          </div>
+          <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#fff", fontFamily: F, marginBottom: "4px" }}>
+            {invite.createdByName} invited you to join <span style={{ color: "#1DC9E8" }}>{invite.spaceName}</span>
+          </div>
+          <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.4)", lineHeight: 1.5 }}>
+            Cadence is where driven people track their activity, hold each other accountable, and do more — together.
+          </div>
+        </div>
+
+        {/* Google */}
+        <div className="r3">
+          <button className="google-btn" onClick={handleGoogle} disabled={loading}>
+            <GoogleIcon /> Continue with Google
+          </button>
+        </div>
+
+        <div className="r4"><Divider /></div>
+
+        {/* Login / Signup tabs */}
+        <div className="r4">
+          <div className="tab-row">
+            <button className={`tab ${tab === "signup" ? "active" : "inactive"}`} onClick={() => { setTab("signup"); setErrMsg(""); }}>Create account</button>
+            <button className={`tab ${tab === "login" ? "active" : "inactive"}`} onClick={() => { setTab("login"); setErrMsg(""); }}>Log in</button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {errMsg && <div className="err-box">{errMsg}</div>}
+          <div className="r5">
+            <input className="field" type="email" placeholder="your@email.com"
+              value={email} onChange={e => setEmail(e.target.value)}
+              autoComplete="email" disabled={loading} autoFocus />
+          </div>
+          <div className="r6 pw-wrap">
+            <input className="field" type={showPw ? "text" : "password"}
+              placeholder={tab === "signup" ? "Create a password (8+ chars)" : "Your password"}
+              value={pw} onChange={e => setPw(e.target.value)}
+              autoComplete={tab === "login" ? "current-password" : "new-password"}
+              disabled={loading} style={{ paddingRight: "60px" }} />
+            <button type="button" className="pw-toggle" onClick={() => setShowPw(v => !v)}>
+              {showPw ? "Hide" : "Show"}
+            </button>
+          </div>
+          {tab === "signup" && (
+            <div className="r6 pw-wrap">
+              <input className="field" type={showPw ? "text" : "password"}
+                placeholder="Confirm password"
+                value={pw2} onChange={e => setPw2(e.target.value)}
+                autoComplete="new-password" disabled={loading} style={{ paddingRight: "60px" }} />
+            </div>
+          )}
+          <div className="r7">
+            <button type="submit" className={`primary-btn${loading ? " loading" : ""}`} disabled={!canSubmit}>
+              {loading ? "…" : tab === "signup" ? `Join ${invite.spaceName} →` : "Log in →"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── AuthScreen ────────────────────────────────────────────────────────────────
+function AuthScreen({ initialTab = "login" }) {
+  const [tab, setTab] = useState(initialTab);
+  const [screen, setScreen] = useState("main");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
@@ -318,41 +386,30 @@ function AuthScreen({ onShowLanding, initialTab = "login" }) {
   async function handleSubmit(e) {
     e.preventDefault();
     reset();
-
     if (tab === "signup") {
       if (pw.length < 8) { setErrMsg("Password must be at least 8 characters."); return; }
       if (pw !== pw2) { setErrMsg("Passwords don't match."); return; }
     }
-
     setLoading(true);
-
     if (tab === "login") {
       const { error } = await sb.auth.signInWithPassword({ email, password: pw });
       setLoading(false);
       if (error) {
-        if (error.message.toLowerCase().includes("invalid")) {
-          setErrMsg("Wrong email or password. Try again, or reset your password below.");
-        } else {
-          setErrMsg(error.message);
-        }
+        setErrMsg(error.message.toLowerCase().includes("invalid")
+          ? "Wrong email or password. Try again, or reset your password below."
+          : error.message);
       }
-      // success → AuthGate picks up session change automatically
     } else {
-      // signup — create account, then auto sign-in (no email confirm needed if disabled in Supabase)
       const { error } = await sb.auth.signUp({ email, password: pw });
       setLoading(false);
       if (error) {
         if (error.message.toLowerCase().includes("already")) {
           setErrMsg("An account with that email already exists. Try logging in instead.");
           switchTab("login");
-        } else {
-          setErrMsg(error.message);
-        }
+        } else { setErrMsg(error.message); }
       } else {
-        // Auto sign-in after signup
         const { error: signInErr } = await sb.auth.signInWithPassword({ email, password: pw });
         if (signInErr) setSuccessMsg("Account created — check your email to confirm, then log in.");
-        // If sign-in succeeds, AuthGate handles redirect automatically
       }
     }
   }
@@ -369,40 +426,28 @@ function AuthScreen({ onShowLanding, initialTab = "login" }) {
     <div className="auth-wrap">
       <style>{CSS}</style>
       <div className="bg-orb" /><div className="bg-grid" />
-
       <div className="card">
-        {/* Logo */}
-        <div className="r1"><Logo onClick={onShowLanding} /></div>
-
-        {/* Google */}
+        <div className="r1"><Logo /></div>
         <div className="r2">
           <button className="google-btn" onClick={handleGoogle} disabled={loading}>
             <GoogleIcon /> Continue with Google
           </button>
         </div>
-
-        {/* Divider */}
         <div className="r3"><Divider /></div>
-
-        {/* Login / Signup tabs */}
         <div className="r4">
           <div className="tab-row">
             <button className={`tab ${tab === "login" ? "active" : "inactive"}`} onClick={() => switchTab("login")}>Log in</button>
             <button className={`tab ${tab === "signup" ? "active" : "inactive"}`} onClick={() => switchTab("signup")}>Create account</button>
           </div>
         </div>
-
-        {/* Form */}
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {errMsg && <div className="err-box r5">{errMsg}</div>}
           {successMsg && <div className="ok-box r5">{successMsg}</div>}
-
           <div className="r5">
             <input ref={emailRef} className="field" type="email" placeholder="your@email.com"
               value={email} onChange={e => { setEmail(e.target.value); reset(); }}
               autoComplete="email" disabled={loading} />
           </div>
-
           <div className="r6 pw-wrap">
             <input className="field" type={showPw ? "text" : "password"}
               placeholder={tab === "signup" ? "Create a password (8+ chars)" : "Your password"}
@@ -413,7 +458,6 @@ function AuthScreen({ onShowLanding, initialTab = "login" }) {
               {showPw ? "Hide" : "Show"}
             </button>
           </div>
-
           {tab === "signup" && (
             <div className="r6 pw-wrap">
               <input className="field" type={showPw ? "text" : "password"}
@@ -422,15 +466,12 @@ function AuthScreen({ onShowLanding, initialTab = "login" }) {
                 autoComplete="new-password" disabled={loading} style={{ paddingRight: "60px" }} />
             </div>
           )}
-
           <div className="r7">
             <button type="submit" className={`primary-btn${loading ? " loading" : ""}`} disabled={!canSubmit}>
               {loading ? "…" : tab === "login" ? "Log in →" : "Create account →"}
             </button>
           </div>
         </form>
-
-        {/* Forgot password — only on login tab */}
         {tab === "login" && (
           <div className="r7" style={{ textAlign: "center", marginTop: "14px" }}>
             <button className="ghost-btn" onClick={() => { reset(); setScreen("forgot"); }}>
@@ -443,19 +484,25 @@ function AuthScreen({ onShowLanding, initialTab = "login" }) {
   );
 }
 
-// ── AuthGate ──────────────────────────────────────────────────────────
+// ── AuthGate ──────────────────────────────────────────────────────────────────
 function AuthGate() {
   const [session, setSession] = useState(undefined);
   const [upgradeFlash, setUpgradeFlash] = useState(false);
-  // showLanding: true = landing page, false = auth screen
-  const [showLanding, setShowLanding] = useState(true);
-  const [authTab, setAuthTab] = useState("login"); // pre-select tab from landing CTA
+  const [invite, setInvite] = useState(null);       // { spaceName, inviterName, spaceType, spaceId, token }
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [pendingInvite, setPendingInvite] = useState(null); // after signin, before app loads
+  const [isNewUser, setIsNewUser] = useState(false);
+
+  // Extract invite token from URL
+  const inviteToken = (() => {
+    const m = window.location.pathname.match(/\/invite\/([a-z0-9]+)/i);
+    return m ? m[1] : sessionStorage.getItem("cadence-pending-invite") || null;
+  })();
 
   useEffect(() => {
     sb.auth.getSession().then(({ data }) => setSession(data.session));
     const { data: { subscription } } = sb.auth.onAuthStateChange((_e, s) => setSession(s));
 
-    // Detect return from Stripe checkout
     const params = new URLSearchParams(window.location.search);
     if (params.get("upgraded") === "1") {
       setUpgradeFlash(true);
@@ -466,30 +513,86 @@ function AuthGate() {
     return () => subscription.unsubscribe();
   }, []);
 
-  if (session === undefined) return (
+  // Load invite data when token is present
+  useEffect(() => {
+    if (!inviteToken) return;
+    setInviteLoading(true);
+    // Use shared.js loadInvite via window or direct Supabase query
+    sb.from("kv_store").select("value").like("key", `%invite-${inviteToken}`).maybeSingle()
+      .then(({ data }) => {
+        if (data?.value) {
+          setInvite({ ...data.value, token: inviteToken });
+        }
+        setInviteLoading(false);
+      })
+      .catch(() => setInviteLoading(false));
+  }, [inviteToken]);
+
+  // Handle post-signin invite processing
+  function handleInviteSignIn({ isNewUser: newUser, token }) {
+    setPendingInvite(token);
+    setIsNewUser(newUser);
+    // session change will re-render — App receives pendingInvite + isNewUser via props
+  }
+
+  // Handle existing session landing on invite URL — join immediately
+  useEffect(() => {
+    if (!session || !inviteToken || !invite) return;
+    const path = window.location.pathname;
+    if (!path.includes("/invite/")) return; // only process direct invite URL visits, not sessionStorage
+
+    // Dispatch event to App to join crew + show flash
+    window.dispatchEvent(new CustomEvent("cadence:join-invite", {
+      detail: { token: inviteToken, spaceName: invite.spaceName, isNewUser: false }
+    }));
+    // Clear URL
+    window.history.replaceState({}, "", "/");
+  }, [session, invite]);
+
+  // Loading
+  if (session === undefined || (inviteToken && inviteLoading)) return (
     <div style={{ minHeight: "100vh", background: "#080C18", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: "18px", height: "18px", borderRadius: "50%", border: "2px solid rgba(29,201,232,0.15)", borderTop: "2px solid #1DC9E8", animation: "spin 0.7s linear infinite" }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 
-  if (!session && showLanding) return (
-    <LandingPage
-      onSignUp={() => { setAuthTab("signup"); setShowLanding(false); }}
-      onLogin={() => { setAuthTab("login"); setShowLanding(false); }}
-    />
-  );
+  // No session + invite URL → InviteScreen
+  if (!session && inviteToken && invite) {
+    return <InviteScreen invite={invite} token={inviteToken} onSignedIn={handleInviteSignIn} />;
+  }
 
-  if (!session) return <AuthScreen onShowLanding={() => setShowLanding(true)} initialTab={authTab} />;
+  // No session + invalid/expired invite token → show error then auth
+  if (!session && inviteToken && !invite && !inviteLoading) {
+    return (
+      <div className="auth-wrap">
+        <style>{CSS}</style>
+        <div className="bg-orb" /><div className="bg-grid" />
+        <div className="card" style={{ textAlign: "center" }}>
+          <Logo />
+          <div style={{ fontSize: "0.95rem", color: "rgba(255,255,255,0.5)", marginBottom: "20px" }}>
+            This invite link has expired or is invalid.
+          </div>
+          <AuthScreen initialTab="login" />
+        </div>
+      </div>
+    );
+  }
+
+  // No session → login
+  if (!session) return <AuthScreen />;
+
+  // Has session → app
   if (upgradeFlash) return (
     <>
-      <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 99999, background: "#1DC9E8", color: "#000", textAlign: "center", padding: "14px", fontWeight: 800, fontSize: "0.95rem", fontFamily: "'DM Sans', sans-serif" }}>
-        🎉 You're on Pro! Unlimited Pacer coaching is now unlocked.
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 99999, background: "#1DC9E8", color: "#000", textAlign: "center", padding: "14px", fontWeight: 800, fontSize: "0.95rem", fontFamily: F }}>
+        You're in. Unlimited Pacer coaching is now unlocked.
       </div>
-      <App authUser={session.user} />
+      <App authUser={session.user} pendingInvite={pendingInvite} isNewUser={isNewUser} />
     </>
   );
-  return <App authUser={session.user} />;
+
+  return <App authUser={session.user} pendingInvite={pendingInvite} isNewUser={isNewUser} />;
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<AuthGate />);

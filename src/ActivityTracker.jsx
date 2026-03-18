@@ -6622,9 +6622,105 @@ function MobileBottomNav({ view, navigateTo, orgId, communities, messaging, noti
  );
 }
 
-export default function App({ authUser }) {
+
+// ── OnboardingTour — 3-step overlay for new users arriving via invite ─────────
+function OnboardingTour({ step, crewName, onNext, onSkip }) {
+  const F = "'DM Sans',system-ui,sans-serif";
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+  const steps = [
+    {
+      title: "Welcome to Cadence",
+      body: "This is your Home. Every day starts here — your goals, your streak, your command center.",
+      cta: "Show me the tracker →",
+      // Highlight bottom of screen for Home tab
+      spotlightBottom: true,
+    },
+    {
+      title: "Log your activity here",
+      body: "The Tracker is where you log your dials, connects, and anything else you're tracking. Tap the numbers, hit save. That's it.",
+      cta: crewName ? `Now let's find ${crewName} →` : "Next →",
+      spotlightBottom: true,
+    },
+    {
+      title: crewName ? `You're in ${crewName}` : "Your crew",
+      body: crewName
+        ? `This is where you and your crew hold each other accountable. Everyone's numbers, one place.`
+        : "This is where you and your crew hold each other accountable.",
+      cta: "Let's go →",
+      spotlightBottom: true,
+    },
+  ];
+
+  const s = steps[step] || steps[0];
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:99990, pointerEvents:"none" }}>
+      {/* Dark overlay with hole at bottom for nav */}
+      <div style={{ position:"absolute", inset:0, background:"rgba(8,12,24,0.88)", pointerEvents:"auto" }}
+        onClick={onSkip} />
+
+      {/* Tour card — positioned above bottom nav */}
+      <div style={{
+        position:"absolute",
+        bottom: isMobile ? "calc(env(safe-area-inset-bottom,0px) + 80px)" : "80px",
+        left:"50%", transform:"translateX(-50%)",
+        width:"min(92vw, 400px)",
+        background:"var(--bg-1,#0F1420)",
+        border:"1px solid rgba(29,201,232,0.3)",
+        borderRadius:"20px",
+        padding:"24px",
+        zIndex:99991,
+        pointerEvents:"auto",
+        boxShadow:"0 8px 40px rgba(0,0,0,0.6)",
+        animation:"fadeUp 0.3s ease both",
+      }}>
+        {/* Step dots */}
+        <div style={{ display:"flex", gap:"6px", marginBottom:"16px" }}>
+          {steps.map((_, i) => (
+            <div key={i} style={{
+              width: i === step ? "20px" : "6px", height:"6px", borderRadius:"3px",
+              background: i === step ? "#1DC9E8" : "rgba(255,255,255,0.15)",
+              transition:"width 0.3s ease",
+            }} />
+          ))}
+        </div>
+
+        <div style={{ fontSize:"1.05rem", fontWeight:800, color:"#fff", fontFamily:F, marginBottom:"8px" }}>
+          {s.title}
+        </div>
+        <div style={{ fontSize:"0.88rem", color:"rgba(255,255,255,0.55)", lineHeight:1.6, fontFamily:F, marginBottom:"20px" }}>
+          {s.body}
+        </div>
+
+        <div style={{ display:"flex", gap:"10px" }}>
+          <button onClick={onSkip} style={{
+            background:"none", border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.3)",
+            borderRadius:"10px", padding:"10px 16px", fontSize:"0.82rem", cursor:"pointer", fontFamily:F,
+          }}>
+            Skip
+          </button>
+          <button onClick={onNext} style={{
+            flex:1, background:"#1DC9E8", color:"#000", border:"none",
+            borderRadius:"10px", padding:"11px 20px", fontSize:"0.88rem", fontWeight:800,
+            cursor:"pointer", fontFamily:F,
+          }}>
+            {s.cta}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function App({ authUser, pendingInvite = null, isNewUser = false }) {
  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 600;
  let _oid = null; // mutable org-id used across async init/onboarding functions
+
+ // ── Onboarding tour ──────────────────────────────────────────────────────
+ const [tourStep, setTourStep] = useState(null); // null | 0 | 1 | 2
+ const [tourCrewName, setTourCrewName] = useState(null);
+ const [joinFlash, setJoinFlash] = useState(null); // { spaceName } for existing users
 
  // ── Pull-to-refresh ──────────────────────────────────────────────────────
  const [pullRefreshing, setPullRefreshing] = useState(false);
@@ -7230,6 +7326,37 @@ export default function App({ authUser }) {
  },[]);
 
  useEffect(()=>{init();},[]);
+
+ // ── Handle pending invite (from main.jsx after signup/login via invite link) ─
+ useEffect(() => {
+   if (!pendingInvite || !currentUser) return;
+   sessionStorage.removeItem("cadence-pending-invite");
+   // Join the crew using the invite token
+   joinCommunity(pendingInvite).then(() => {
+     if (isNewUser) {
+       // Start onboarding tour for new users
+       const inv = window._pendingInviteData;
+       setTourCrewName(inv?.spaceName || null);
+       setTourStep(0);
+     }
+     // For existing users — flash handled by joinCommunity itself
+   }).catch(console.error);
+ }, [pendingInvite, currentUser]);
+
+ // ── Handle cadence:join-invite event (existing session hits invite URL) ──
+ useEffect(() => {
+   function handleJoinInvite(e) {
+     const { token, spaceName, isNewUser: newU } = e.detail || {};
+     if (!token) return;
+     joinCommunity(token).then(() => {
+       setJoinFlash({ spaceName });
+       setTimeout(() => setJoinFlash(null), 4000);
+       navigateTo("crews");
+     }).catch(console.error);
+   }
+   window.addEventListener("cadence:join-invite", handleJoinInvite);
+   return () => window.removeEventListener("cadence:join-invite", handleJoinInvite);
+ }, []);
 
  async function init(){
   setLoading(true);
@@ -8600,7 +8727,29 @@ ${text}
    />}
    {modal==="pin"&&pinTarget&&<PinModal user={pinTarget} onConfirm={p=>confirmPin(pinTarget,p)} onCancel={()=>{setPinTarget(null);setModal(null);}}/>}
    {modal==="admin"&&null}
-   {modal==="edit"&&editDate&&<EditDayModal date={editDate} initialData={editDate===todayStr()?{...counts,_notes:notes}:myData[editDate]||{}} industryConfig={indConfig} onClose={()=>{setModal(null);setEditDate(null);}} onSave={data=>{haptic.success();commitEdit(editDate,data);}}/>}
+
+   {/* ── Join flash — existing user joined via invite link ── */}
+   {joinFlash && (
+    <div style={{ position:"fixed", top:"env(safe-area-inset-top,0px)", left:0, right:0, zIndex:99999, background:"#1DC9E8", color:"#000", textAlign:"center", padding:"14px 20px", fontWeight:800, fontSize:"0.9rem", fontFamily:"'DM Sans',system-ui,sans-serif", animation:"fadeUp 0.3s ease both" }}>
+     You've joined {joinFlash.spaceName}
+    </div>
+   )}
+
+   {/* ── Onboarding tour overlay ── */}
+   {tourStep !== null && (
+    <OnboardingTour
+     step={tourStep}
+     crewName={tourCrewName}
+     onNext={() => {
+      if (tourStep === 0) { navigateTo("tracker"); setTourStep(1); }
+      else if (tourStep === 1) { navigateTo("crews"); setTourStep(2); }
+      else { setTourStep(null); sessionStorage.removeItem("cadence-pending-invite"); }
+     }}
+     onSkip={() => { setTourStep(null); sessionStorage.removeItem("cadence-pending-invite"); }}
+    />
+   )}
+
+   {modal==="edit"&&editDate&&<EditDayModal&&editDate&&<EditDayModal date={editDate} initialData={editDate===todayStr()?{...counts,_notes:notes}:myData[editDate]||{}} industryConfig={indConfig} onClose={()=>{setModal(null);setEditDate(null);}} onSave={data=>{haptic.success();commitEdit(editDate,data);}}/>}
 
    <div style={{...s.container, transform: pullY > 0 ? `translateY(${pullY}px)` : undefined, transition: pullY === 0 && !pullRefreshing ? "transform 0.3s ease" : undefined }}
     onTouchStart={isMobile ? onPullTouchStart : undefined}
