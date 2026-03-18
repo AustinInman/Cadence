@@ -1901,13 +1901,13 @@ function DailyReportTab({ user }) {
     if (!isValidEmail(email) || recipients.includes(email)) { setNewEmail(""); return; }
     const updated = [...recipients, email];
     setSaving(true);
-    await window._sb.from("kv_store").upsert({key:reportKey,value:updated,updated_at:new Date().toISOString()},{onConflict:"key"}).catch(()=>{});
+    try { await window._sb.from("kv_store").upsert({key:reportKey,value:updated,updated_at:new Date().toISOString()},{onConflict:"key"}); } catch(e) {}
     setRecipients(updated); setNewEmail(""); setSaving(false);
   }
 
   async function removeRecipient(email) {
     const updated = recipients.filter(e => e !== email);
-    await window._sb.from("kv_store").upsert({key:reportKey,value:updated,updated_at:new Date().toISOString()},{onConflict:"key"}).catch(()=>{});
+    try { await window._sb.from("kv_store").upsert({key:reportKey,value:updated,updated_at:new Date().toISOString()},{onConflict:"key"}); } catch(e) {}
     setRecipients(updated);
   }
 
@@ -1928,7 +1928,7 @@ function DailyReportTab({ user }) {
   return (
     <div style={{maxWidth:"480px",display:"flex",flexDirection:"column",gap:"20px"}}>
       <div>
-        <div style={{fontSize:"1.05rem",fontWeight:"700",color:"var(--text-primary)",fontFamily:F,marginBottom:"4px"}}>📱 Daily Report</div>
+        <div style={{fontSize:"1.05rem",fontWeight:"700",color:"var(--text-primary)",fontFamily:F,marginBottom:"4px"}}>Daily Report</div>
         <div style={{fontSize:"0.85rem",color:TM,lineHeight:1.6}}>Email at 5pm ET every weekday with your group's numbers. Everyone in this list gets the same summary.</div>
       </div>
       <div>
@@ -1962,20 +1962,16 @@ function DailyReportTab({ user }) {
         <div style={{fontSize:"0.68rem",fontWeight:"800",color:TD,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:"4px"}}>Body</div>
         <pre style={{fontSize:"0.82rem",color:TM,fontFamily:"monospace",lineHeight:1.6,margin:0,whiteSpace:"pre-wrap"}}>{"Austin: 34/50 dials · 4 connects 🔥3d\nJake: 28/50 dials · 2 connects\n\n16 dials left in the tank. Finish strong."}</pre>
       </div>
-      <div style={{background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:"12px",padding:"14px 16px"}}>
-        <div style={{fontSize:"0.8rem",fontWeight:"700",color:"#F59E0B",marginBottom:"6px"}}>One-time setup</div>
         <div style={{fontSize:"0.75rem",color:TM,lineHeight:1.7}}>
           Deploy <code style={{color:TA}}>supabase functions deploy daily-report</code><br/>
           Add cron in Supabase → Edge Functions → Schedules:<br/>
           <code style={{color:"var(--text-primary)",fontSize:"0.72rem"}}>0 21 * * 1-5</code> → 5pm ET Mon–Fri
         </div>
       </div>
-      {recipients.length > 0 && (
-        <button onClick={sendTest} disabled={testSending}
-          style={{background:"rgba(29,201,232,0.08)",border:"1px solid rgba(29,201,232,0.25)",borderRadius:"12px",padding:"13px",fontWeight:"700",fontSize:"0.88rem",color:TA,cursor:"pointer",fontFamily:F,opacity:testSending?0.6:1}}>
-          {testSending ? "Sending test…" : "Send test report now →"}
-        </button>
-      )}
+      <button onClick={sendTest} disabled={testSending}
+        style={{background:"rgba(29,201,232,0.08)",border:"1px solid rgba(29,201,232,0.25)",borderRadius:"12px",padding:"13px",fontWeight:"700",fontSize:"0.88rem",color:TA,cursor:"pointer",fontFamily:F,opacity:testSending?0.6:1}}>
+        {testSending ? "Sending test…" : "Send test report now →"}
+      </button>
       {testResult === "success" && <div style={{fontSize:"0.8rem",color:"#4ACF86",fontWeight:"600"}}>✓ Sent — check your inbox.</div>}
       {testResult === "error" && <div style={{fontSize:"0.8rem",color:"#F87171",fontWeight:"600"}}>Failed — check that RESEND_API_KEY is set in Supabase secrets.</div>}
     </div>
@@ -2261,9 +2257,7 @@ export function SettingsPage({user, allUsers, admins, teams, industryConfigs, in
     {k:"goals",        label:"My Goals"},
     {k:"journal",      label:"My Journal"},
     {k:"pacer",        label:"Pacer AI"},
-    {k:"subscription",  label:"Subscription 💳"},
-    {k:"integrations", label:"Integrations"},
-    {k:"report",       label:"📱 Daily Report"},
+    {k:"report",       label:"Daily Report"},
     {k:"share",   label:"Share Profile"},
     // {k:"refer", label:"Refer & Earn 💸"}, // vaulted
     {k:"feedback",label:"Feedback"},
@@ -3208,9 +3202,8 @@ export function SettingsPage({user, allUsers, admins, teams, industryConfigs, in
     })()}
 
     {/* ──────────────── INTEGRATIONS ──────────────── */}
-    {tab==="integrations"&&<IntegrationsTab user={user} isPro={isPro} authUser={authUser} />}
-
     {tab==="report"&&<DailyReportTab user={user} />}
+
 
     {/* ──────────────── SHARE PROFILE ──────────────── */}
     {tab==="share"&&(()=>{
