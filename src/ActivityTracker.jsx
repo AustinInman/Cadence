@@ -5129,6 +5129,14 @@ function WeeklyReflectionPrompt({ currentUser, industryConfig, weekKeyStr, myDat
  );
 }
 
+function relTimeStatic(ts) {
+ const diff = Date.now() - ts;
+ if (diff < 60000) return "just now";
+ if (diff < 3600000) return `${Math.floor(diff/60000)}m ago`;
+ if (diff < 86400000) return `${Math.floor(diff/3600000)}h ago`;
+ return `${Math.floor(diff/86400000)}d ago`;
+}
+
 function NotificationsPanel({ notifs, unread, onMarkAllRead, onMarkRead, onClose, onNavigate }) {
  return (
   <div style={{ position: "fixed", top: "calc(env(safe-area-inset-top, 0px) + 108px)", left: "8px", right: "8px", maxWidth: "360px", margin: "0 auto", background: "var(--bg-1)", border: "1px solid var(--border-1)", borderRadius: "14px", boxShadow: "0 8px 32px rgba(0,0,0,0.6)", zIndex: 300, overflow: "hidden" }}>
