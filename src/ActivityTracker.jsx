@@ -13616,116 +13616,97 @@ Rules:
 // ── Crew Stats — collective identity numbers ─────────────────────────
 // ── CrewScoreboard — today's numbers for every member, sorted by goal % ──────
 function CrewScoreboard({ members, allUsersData, allUserGoals, industryConfigs, currentUser }) {
-  const F = "'DM Sans',system-ui,sans-serif";
-  const TA = "var(--accent,#1DC9E8)";
+  const F  = "'DM Sans',system-ui,sans-serif";
   const TP = "var(--text-primary)";
   const TM = "var(--text-muted)";
   const TD = "var(--text-dim,rgba(255,255,255,0.25))";
   const today = todayStr();
 
-  // Build a row per member
+  const COLORS = ["#1DC9E8","#A855F7","#F97316","#4ACF86","#F59E0B","#E05577","#3B82F6","#EC4899"];
+
   const rows = members.map(m => {
-    const uid       = m.userId || m.id;
-    const name      = m.name || "Unknown";
-    const allData   = allUsersData[uid] || {};
-    const goals     = allUserGoals[uid] || {};
+    const uid     = m.userId || m.id;
+    const allData = allUsersData[uid] || {};
+    const goals   = allUserGoals[uid] || {};
     const todayData = allData[today] || {};
-    const industry  = m.industry;
-    const cfg       = industryConfigs[industry] || Object.values(industryConfigs || {})[0] || {};
-    const metrics   = (cfg.weekdayMetrics || []).filter(m => (goals[m.key] ?? m.defaultGoal ?? 0) > 0);
-    const pct       = metrics.length ? computeGoalPct(todayData, metrics, goals) : 0;
-    const streak    = computeStreak(allData).current || 0;
-    const isMe      = uid === (currentUser?.id);
-
-    return { uid, name, metrics, todayData, goals, pct, streak, isMe };
-  });
-
-  // Sort: goal % descending, ties broken by streak
-  rows.sort((a, b) => b.pct - a.pct || b.streak - a.streak);
+    const cfg     = industryConfigs[m.industry] || Object.values(industryConfigs || {})[0] || {};
+    const metrics = (cfg.weekdayMetrics || []).filter(met => (goals[met.key] ?? met.defaultGoal ?? 0) > 0);
+    const pct     = metrics.length ? computeGoalPct(todayData, metrics, goals) : 0;
+    const streak  = computeStreak(allData).current || 0;
+    return { uid, name: m.name || "?", metrics, todayData, goals, pct, streak, isMe: uid === currentUser?.id };
+  }).sort((a, b) => b.pct - a.pct || b.streak - a.streak);
 
   if (!rows.length) return null;
-
-  const MEMBER_COLORS = ["#1DC9E8","#A855F7","#F97316","#4ACF86","#F59E0B","#E05577","#3B82F6","#EC4899"];
 
   return (
     <div style={{ background: "var(--bg-1)", border: "1px solid var(--border-1)", borderRadius: "14px", overflow: "hidden" }}>
       {/* Header */}
-      <div style={{ padding: "11px 14px 9px", borderBottom: "1px solid var(--border-1)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ fontSize: "0.62rem", fontWeight: "800", color: TD, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: F }}>
-          Today's Numbers
-        </div>
-        <div style={{ fontSize: "0.62rem", color: TD, fontFamily: F }}>{today}</div>
+      <div style={{ padding: "10px 14px 8px", borderBottom: "1px solid var(--border-1)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: "0.6rem", fontWeight: "800", color: TD, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: F }}>Today's Numbers</span>
+        <span style={{ fontSize: "0.6rem", color: TD, fontFamily: F }}>{today}</span>
       </div>
 
-      {/* Member rows */}
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        {rows.map((row, idx) => {
-          const color = MEMBER_COLORS[idx % MEMBER_COLORS.length];
-          const initials = row.name.trim().split(" ").map(w => w[0]).join("").toUpperCase().slice(0,2);
-          const pctColor = row.pct >= 100 ? "#4ACF86" : row.pct >= 60 ? TA : row.pct > 0 ? TM : TD;
-          const hasData  = row.metrics.some(m => (row.todayData[m.key] || 0) > 0);
+      {/* One card per person */}
+      {rows.map((row, idx) => {
+        const color    = COLORS[idx % COLORS.length];
+        const initials = row.name.trim().split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
+        const pctColor = row.pct >= 100 ? "#4ACF86" : row.pct >= 60 ? "#1DC9E8" : row.pct > 0 ? TM : TD;
+        const hasData  = row.metrics.some(m => (row.todayData[m.key] || 0) > 0);
 
-          return (
-            <div key={row.uid}
-              style={{
-                padding: "12px 14px",
-                borderBottom: idx < rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                background: row.isMe ? "rgba(29,201,232,0.03)" : "none",
-              }}>
-              {/* Name row */}
-              <div style={{ display: "flex", alignItems: "center", gap: "9px", marginBottom: row.metrics.length ? "9px" : "0" }}>
-                {/* Avatar */}
-                <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: `${color}22`, border: `1px solid ${color}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.65rem", fontWeight: "800", color, flexShrink: 0, fontFamily: F }}>
-                  {initials}
-                </div>
-                {/* Name + streak */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ fontSize: "0.85rem", fontWeight: row.isMe ? "800" : "700", color: row.isMe ? TP : TM, fontFamily: F, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {row.name.split(" ")[0]}{row.isMe ? " (you)" : ""}
-                    </span>
-                    {row.streak > 0 && (
-                      <span style={{ fontSize: "0.62rem", color: "#F59E0B", fontWeight: "700", flexShrink: 0 }}>🔥{row.streak}d</span>
-                    )}
-                  </div>
-                </div>
-                {/* Overall % */}
-                <div style={{ fontSize: "0.85rem", fontWeight: "900", color: pctColor, fontFamily: F, flexShrink: 0 }}>
-                  {hasData ? `${row.pct}%` : <span style={{ fontSize: "0.7rem", color: TD, fontWeight: "500" }}>—</span>}
-                </div>
+        return (
+          <div key={row.uid} style={{
+            padding: "12px 14px",
+            borderBottom: idx < rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+            background: row.isMe ? `${color}07` : "none",
+          }}>
+            {/* Name row */}
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+              <div style={{ width: "26px", height: "26px", borderRadius: "50%", background: `${color}20`, border: `1.5px solid ${color}50`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.6rem", fontWeight: "800", color, flexShrink: 0, fontFamily: F }}>
+                {initials}
               </div>
-
-              {/* Metric bars */}
-              {row.metrics.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "5px", paddingLeft: "37px" }}>
-                  {row.metrics.map(m => {
-                    const goal = row.goals[m.key] ?? m.defaultGoal ?? 0;
-                    const val  = row.todayData[m.key] || 0;
-                    const pct  = goal > 0 ? Math.min(100, Math.round((val / goal) * 100)) : 0;
-                    const barColor = pct >= 100 ? "#4ACF86" : m.color || color;
-                    return (
-                      <div key={m.key}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "3px" }}>
-                          <span style={{ fontSize: "0.65rem", color: TD, fontFamily: F }}>{m.short || m.label}</span>
-                          <span style={{ fontSize: "0.68rem", fontWeight: "700", color: pct >= 100 ? "#4ACF86" : TP, fontFamily: F }}>
-                            {val}<span style={{ fontWeight: "400", color: TD }}>/{goal}</span>
-                          </span>
-                        </div>
-                        <div style={{ height: "3px", background: "var(--bg-3,rgba(255,255,255,0.06))", borderRadius: "2px", overflow: "hidden" }}>
-                          <div style={{ height: "100%", width: `${pct}%`, background: barColor, borderRadius: "2px", transition: "width 0.5s ease" }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              <span style={{ fontSize: "0.88rem", fontWeight: "700", color: row.isMe ? TP : TM, fontFamily: F, flex: 1 }}>
+                {row.name.split(" ")[0]}{row.isMe ? " · you" : ""}
+              </span>
+              {row.streak > 0 && <span style={{ fontSize: "0.65rem", color: "#F59E0B", fontWeight: "700" }}>🔥{row.streak}d</span>}
+              <span style={{ fontSize: "0.9rem", fontWeight: "900", color: pctColor, fontFamily: F }}>
+                {hasData ? `${row.pct}%` : "—"}
+              </span>
             </div>
-          );
-        })}
-      </div>
+
+            {/* Metric columns */}
+            {row.metrics.length > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(row.metrics.length, 6)}, 1fr)`, gap: "8px" }}>
+                {row.metrics.map(m => {
+                  const goal     = row.goals[m.key] ?? m.defaultGoal ?? 0;
+                  const val      = row.todayData[m.key] || 0;
+                  const barPct   = goal > 0 ? Math.min(100, Math.round((val / goal) * 100)) : 0;
+                  const barColor = barPct >= 100 ? "#4ACF86" : m.color || color;
+                  return (
+                    <div key={m.key}>
+                      {/* Progress bar on top */}
+                      <div style={{ height: "3px", background: "rgba(255,255,255,0.06)", borderRadius: "2px", overflow: "hidden", marginBottom: "5px" }}>
+                        <div style={{ height: "100%", width: `${barPct}%`, background: barColor, borderRadius: "2px", transition: "width 0.5s ease" }} />
+                      </div>
+                      {/* Value */}
+                      <div style={{ fontSize: "0.95rem", fontWeight: "800", color: barPct >= 100 ? "#4ACF86" : TP, fontFamily: F, lineHeight: 1 }}>
+                        {val}<span style={{ fontSize: "0.65rem", fontWeight: "400", color: TD }}>/{goal}</span>
+                      </div>
+                      {/* Label */}
+                      <div style={{ fontSize: "0.62rem", color: TD, fontFamily: F, marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {m.short || m.label}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
+
 
 function GuildStats({ members, allUsersData, allUserGoals, industryConfigs, presenceMap }) {
   const F = "'DM Sans',system-ui,sans-serif";
