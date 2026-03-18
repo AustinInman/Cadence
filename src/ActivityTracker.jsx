@@ -13717,7 +13717,7 @@ function CrewScoreboard({ members, allUsersData, allUserGoals, industryConfigs, 
               {row.metrics.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "5px", paddingLeft: "37px" }}>
                   {row.metrics.map(m => {
-                    const goal = goals[m.key] ?? m.defaultGoal ?? 0;
+                    const goal = row.goals[m.key] ?? m.defaultGoal ?? 0;
                     const val  = row.todayData[m.key] || 0;
                     const pct  = goal > 0 ? Math.min(100, Math.round((val / goal) * 100)) : 0;
                     const barColor = pct >= 100 ? "#4ACF86" : m.color || color;
