@@ -1164,10 +1164,11 @@ export function SpacesSettingsTab({
 }
 
 
-// ── MyGoalsTab — edit daily targets and add/remove custom metrics ─────────────
-function MyGoalsTab({ metrics, goals, setGoals, onSaveGoals, flashSaved, TA, F, s, BG1, BG2, BG3, BB1, TS, TD }) {
+// ── MyGoalsTab — edit targets and add/remove metrics ──────────────────────────
+function MyGoalsTab({ metrics, goals, setGoals, goalPeriods, setGoalPeriods, onSaveGoals, flashSaved, TA, F, s, BG1, BG2, BG3, BB1, TS, TD }) {
  const [localMetrics, setLocalMetrics] = useState(() => metrics.map(m => ({ ...m })));
  const [localGoals, setLocalGoals] = useState(() => ({ ...goals }));
+ const [localPeriods, setLocalPeriods] = useState(() => ({ ...(goalPeriods||{}) }));
  const [adding, setAdding] = useState(false);
  const [newLabel, setNewLabel] = useState("");
  const [newDefault, setNewDefault] = useState(10);
@@ -1190,6 +1191,7 @@ function MyGoalsTab({ metrics, goals, setGoals, onSaveGoals, flashSaved, TA, F, 
  function handleRemoveMetric(key) {
   setLocalMetrics(p => p.filter(m => m.key !== key));
   setLocalGoals(p => { const n = { ...p }; delete n[key]; return n; });
+  setLocalPeriods(p => { const n = { ...p }; delete n[key]; return n; });
  }
 
  function handleSaveLabel(key) {
@@ -1198,72 +1200,78 @@ function MyGoalsTab({ metrics, goals, setGoals, onSaveGoals, flashSaved, TA, F, 
   setEditingKey(null);
  }
 
+ function togglePeriod(key, period) {
+  setLocalPeriods(p => ({ ...p, [key]: period }));
+ }
+
  function handleSave() {
-  // Persist updated metric definitions + goals
-  // Goals saved via onSaveGoals; metric label changes require industryConfig update
-  // For now save goals with current local values
   const merged = {};
   localMetrics.forEach(m => { merged[m.key] = localGoals[m.key] ?? m.defaultGoal; });
   setGoals(merged);
-  onSaveGoals(merged, null, localMetrics);
+  if (setGoalPeriods) setGoalPeriods(localPeriods);
+  onSaveGoals(merged, null, localMetrics, localPeriods);
   flashSaved("Goals saved");
  }
 
  const inputStyle = { background: BG2, border: `1px solid var(--border-1)`, borderRadius: "8px", padding: "7px 10px", color: TS, fontSize: "0.85rem", fontFamily: F, outline: "none", width: "100%", boxSizing: "border-box" };
  const numStyle = { ...inputStyle, width: "80px", textAlign: "center" };
+ const periodLabels = { daily:"/ day", weekly:"/ wk", monthly:"/ mo", annual:"/ yr" };
 
  return (
   <div style={{ maxWidth: "min(520px,100%)" }}>
    <div style={s.x1}>My Goals</div>
-   <p style={{ ...s.mHint, marginBottom: "24px" }}>Your daily targets. These drive goal % on your dashboard, leaderboard, and Pacer AI coaching. Set to 0 to skip a metric.</p>
+   <p style={{ ...s.mHint, marginBottom: "24px" }}>Set targets per metric. These drive goal % on your dashboard, leaderboard, and Pacer AI coaching. Set to 0 to skip a metric.</p>
 
    {/* Metric rows */}
-   <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "20px" }}>
-    {localMetrics.map(m => (
-     <div key={m.key} style={{ display: "flex", alignItems: "center", gap: "10px", background: BG2, border: `1px solid var(--border-1)`, borderRadius: "10px", padding: "10px 14px" }}>
-      {/* Label — click to edit */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-       {editingKey === m.key ? (
-        <input
-         autoFocus
-         value={editLabel}
-         onChange={e => setEditLabel(e.target.value)}
-         onBlur={() => handleSaveLabel(m.key)}
-         onKeyDown={e => { if (e.key === "Enter") handleSaveLabel(m.key); if (e.key === "Escape") setEditingKey(null); }}
-         style={{ ...inputStyle, padding: "4px 8px", fontSize: "0.85rem" }}
-        />
-       ) : (
-        <div
-         onClick={() => { setEditingKey(m.key); setEditLabel(m.label); }}
-         style={{ fontSize: "0.9rem", fontWeight: 600, color: TS, fontFamily: F, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
-        >
-         {m.label}
-         <span style={{ fontSize: "0.65rem", color: TD, fontWeight: 400 }}>✎</span>
-         {m.custom && <span style={{ fontSize: "0.6rem", color: TA, background: `${TA}18`, border: `1px solid ${TA}30`, borderRadius: "4px", padding: "1px 5px", fontWeight: 700 }}>custom</span>}
+   <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "20px" }}>
+    {localMetrics.map(m => {
+     const period = localPeriods[m.key] || "daily";
+     return (
+      <div key={m.key} style={{ background: BG2, border: `1px solid var(--border-1)`, borderRadius: "10px", padding: "10px 14px", display: "flex", flexDirection: "column", gap: "8px" }}>
+       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        {/* Label */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+         {editingKey === m.key ? (
+          <input autoFocus value={editLabel}
+           onChange={e => setEditLabel(e.target.value)}
+           onBlur={() => handleSaveLabel(m.key)}
+           onKeyDown={e => { if (e.key === "Enter") handleSaveLabel(m.key); if (e.key === "Escape") setEditingKey(null); }}
+           style={{ ...inputStyle, padding: "4px 8px", fontSize: "0.85rem" }}
+          />
+         ) : (
+          <div onClick={() => { setEditingKey(m.key); setEditLabel(m.label); }}
+           style={{ fontSize: "0.9rem", fontWeight: 600, color: TS, fontFamily: F, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
+           {m.label}
+           <span style={{ fontSize: "0.65rem", color: TD, fontWeight: 400 }}>✎</span>
+           {m.custom && <span style={{ fontSize: "0.6rem", color: TA, background: `${TA}18`, border: `1px solid ${TA}30`, borderRadius: "4px", padding: "1px 5px", fontWeight: 700 }}>custom</span>}
+          </div>
+         )}
         </div>
-       )}
+        {/* Goal number + period label */}
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+         <input type="number" min="0" value={localGoals[m.key] ?? m.defaultGoal}
+          onChange={e => { const n = parseInt(e.target.value); setLocalGoals(p => ({ ...p, [m.key]: isNaN(n) ? 0 : Math.max(0, n) })); }}
+          style={numStyle}
+         />
+         <span style={{ fontSize: "0.75rem", color: TD, fontFamily: F, whiteSpace: "nowrap", minWidth: "28px" }}>{periodLabels[period]}</span>
+        </div>
+        {/* Remove button — all metrics */}
+        <button onClick={() => handleRemoveMetric(m.key)}
+         style={{ background: "none", border: "none", color: "#F43F5E", fontSize: "1rem", cursor: "pointer", padding: "2px 4px", flexShrink: 0, lineHeight: 1 }}
+         title="Remove metric">✕</button>
+       </div>
+       {/* Period chips */}
+       <div style={{ display: "flex", gap: "4px", paddingLeft: "2px" }}>
+        {["daily","weekly","monthly","annual"].map(p => (
+         <button key={p} onClick={() => togglePeriod(m.key, p)}
+          style={{ fontSize: "0.6rem", fontWeight: period===p ? "800" : "500", padding: "2px 8px", borderRadius: "5px", border: `1px solid ${period===p ? "rgba(29,201,232,0.5)" : "var(--border-1)"}`, background: period===p ? "rgba(29,201,232,0.1)" : "transparent", color: period===p ? "var(--accent)" : TD, cursor: "pointer", fontFamily: F, textTransform: "capitalize", WebkitTapHighlightColor: "transparent" }}>
+          {p}
+         </button>
+        ))}
+       </div>
       </div>
-
-      {/* Goal number input */}
-      <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-       <input
-        type="number" min="0" value={localGoals[m.key] ?? m.defaultGoal}
-        onChange={e => { const n = parseInt(e.target.value); setLocalGoals(p => ({ ...p, [m.key]: isNaN(n) ? 0 : Math.max(0, n) })); }}
-        style={numStyle}
-       />
-       <span style={{ fontSize: "0.75rem", color: TD, fontFamily: F, whiteSpace: "nowrap" }}>/day</span>
-      </div>
-
-      {/* Remove button (custom metrics only) */}
-      {m.custom && (
-       <button
-        onClick={() => handleRemoveMetric(m.key)}
-        style={{ background: "none", border: "none", color: "#F43F5E", fontSize: "1rem", cursor: "pointer", padding: "2px 4px", flexShrink: 0, lineHeight: 1 }}
-        title="Remove metric"
-       >✕</button>
-      )}
-     </div>
-    ))}
+     );
+    })}
    </div>
 
    {/* Add metric */}
@@ -1284,12 +1292,11 @@ function MyGoalsTab({ metrics, goals, setGoals, onSaveGoals, flashSaved, TA, F, 
     </div>
    ) : (
     <button onClick={() => setAdding(true)} style={{ display: "flex", alignItems: "center", gap: "7px", background: "none", border: `1px dashed ${TA}50`, borderRadius: "10px", padding: "10px 14px", fontSize: "0.82rem", color: TA, cursor: "pointer", fontFamily: F, marginBottom: "16px", width: "100%" }}>
-     <span style={{ fontSize: "1rem" }}>+</span> Add custom metric
+     <span style={{ fontSize: "1rem" }}>+</span> Add metric
     </button>
    )}
 
    <button style={{ ...s.primaryBtn }} onClick={handleSave}>Save Goals</button>
-   <p style={{ ...s.mHint, marginTop: "12px" }}>Click a metric name to rename it. Remove custom metrics with ✕. Built-in metrics can't be removed.</p>
   </div>
  );
 }
@@ -2023,7 +2030,7 @@ function DailyReportTab({ user, industryConfig }) {
   );
 }
 
-export function SettingsPage({user, allUsers, admins, teams, industryConfigs, industryConfig, userGoals, pins, isSuperAdmin, isAdmin,
+export function SettingsPage({user, allUsers, admins, teams, industryConfigs, industryConfig, userGoals, userGoalPeriods, pins, isSuperAdmin, isAdmin,
  onRename, onChangeIndustry, onSaveGoals, onSetPin, onRemovePin,
  onAddNew, onDelete, onToggleAdmin, onAssignTeam, onSaveAdminConfig, onSetAvatarColor, onSetAvatarEmoji, onSetAvatarUrl, initialTab="profile",
  orgId, orgMeta, onJoinOrg, onUpdateOrgMeta, isSolo, communities, communityMembers, onCreateCommunity, onJoinCommunity, onLeaveCommunity,
@@ -2096,6 +2103,7 @@ export function SettingsPage({user, allUsers, admins, teams, industryConfigs, in
   for(const m of metrics) g[m.key]=(userGoals&&userGoals[m.key]!=null)?userGoals[m.key]:m.defaultGoal;
   return g;
  });
+ const [goalPeriods, setGoalPeriods] = useState(()=>({...(userGoalPeriods||{})}));
 
  const hasPin = !!pins[user.id];
  const [pinMode, setPinMode] = useState(null);
@@ -2671,7 +2679,7 @@ export function SettingsPage({user, allUsers, admins, teams, industryConfigs, in
     </div>}
 
     {/* ──────────────── MY GOALS ──────────────── */}
-    {tab==="goals"&&<MyGoalsTab metrics={metrics} goals={goals} setGoals={setGoals} onSaveGoals={onSaveGoals} flashSaved={flashSaved} TA={TA} F={F} s={s} BG1={BG1} BG2={BG2} BG3={BG3} BB1={BB1} TS={TS} TD={TD} />}
+    {tab==="goals"&&<MyGoalsTab metrics={metrics} goals={goals} setGoals={setGoals} goalPeriods={goalPeriods} setGoalPeriods={setGoalPeriods} onSaveGoals={onSaveGoals} flashSaved={flashSaved} TA={TA} F={F} s={s} BG1={BG1} BG2={BG2} BG3={BG3} BB1={BB1} TS={TS} TD={TD} />}
 
     {/* ──────────────── ORGANIZATION ──────────────── */}
     {tab==="org"&&<div style={{maxWidth:"min(620px,100%)"}}>

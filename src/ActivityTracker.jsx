@@ -9365,13 +9365,14 @@ ${text}
      industryConfigs={industryConfigs}
      industryConfig={indConfig}
      userGoals={myGoals}
+     userGoalPeriods={myGoalPeriods}
      pins={pins}
      isSuperAdmin={isSuperAdmin}
      isAdmin={isAdmin}
      isGlobalSA={isGlobalSA}
      onRename={n=>{renameUser(n);}}
      onChangeIndustry={changeIndustry}
-     onSaveGoals={(g, trackId, metrics)=>{saveGoals(g, trackId, metrics);}}
+     onSaveGoals={(g, trackId, metrics, goalPeriods)=>{saveGoals(g, trackId, metrics, goalPeriods);}}
      onSetPin={setPinForUser}
      onRemovePin={removePinForUser}
      onAddNew={(n,ind,pin)=>createUser(n,ind,false,pin)}
