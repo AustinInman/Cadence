@@ -1,8 +1,5 @@
 import { callAI } from './cadenceAI.js';
-import { PacerPaywall, PacerUsageBar } from './PacerPaywall.jsx';
-import { FocusSession } from './FocusSession.jsx';
 import React,{useState,useEffect,useRef,useCallback,useMemo} from 'react';
-import { IndividualReport, CrewReport } from './AnalyticsReport.jsx';
 import {AKEY,AVATAR_COLOR_PRESETS,BB1,BB18,BB1A30,BB1A3A,BB2A10,BB2A28,BBA,BD1,BDIR,BG0,BG1,BG2,BG3,BP,BR,CADENCE_LOGO,DEFAULT_INDUSTRIES,F,METRIC_COLORS,MONTH_NAMES,SHORT_MONTHS,TA,TD,TM,TP,TS,TX,addCommunityMember,addJoinRequest,allDaysInMonth,computeGoalPct,computeStreak,consumeInvite,copyText,createCommunity,createInviteToken,createOrganization,dayName,formatDate,formatShort,genId,getDow,getInviteTokenFromURL,getInviteURL,getNs,getUserAvatarColor,initialsColor,injectThemeVars,isWeekend,lastWeekendSat,loadAdmins,loadCommunityMembers,loadGlobalSuperAdmin,loadIndustryConfig,loadInvite,loadMessages,loadOrgMeta,loadPendingRequests,loadPins,loadSpaceIndex,loadSpaceMeta,loadSuperAdmin,loadTeams,loadThreads,loadUserData,loadUserMemberships,loadUsers,migrateSoloToOrg,monthKey,ns,nsKey,loadUserRegistry,registerUserGlobally,removeCommunityMember,removeJoinRequest,s,saveAdmins,saveGlobalSuperAdmin,saveIndustryConfig,saveMessages,saveOrgMeta,savePins,saveSpaceMeta,saveSuperAdmin,saveTeams,saveThreads,saveUserData,saveUserMemberships,saveUsers,setNs,soloNs,storageDelete,storageGet,storageSet,todayStr,updateCommunityMemberIndustry,useFlash,weekKey,loadPersonalThreads,savePersonalThreads,loadPersonalMessages,savePersonalMessages,loadPersonalMuted,savePersonalMuted,loadSpaceAdmins,saveSpaceAdmins,writePresence,loadPresence,isOnline,getPresenceStatus,loadNotifications,saveNotifications,pushNotification,loadChallenges,saveChallenges,loadWeeklyRecap,saveWeeklyRecap,loadMvpVotes,saveMvpVotes,loadWeeklyReflection,saveWeeklyReflection,loadStreakFreezes,saveStreakFreezes,getProtectedDates,canLogPTO,canLogSick,loadAccountabilityPairs,saveAccountabilityPairs,saveJournalEntry,loadJournalEntries,loadJournalSettings,saveJournalSettings,loadUserTracks,saveUserTracks,loadActiveTrackId,saveActiveTrackId,trackDataKey,trackGoalKey,loadFeed,saveFeed,postFeedItem,updateFeedItem,deleteFeedItem,loadOrgRoles,saveOrgRoles,loadCommunityRoles,saveCommunityRoles,loadOrgTeams,saveOrgTeams,loadMemberAssignments,saveMemberAssignments,setMemberAssignment,canPerform,getTeamSubtree,defaultOrgRoles,defaultCommunityRoles,ROLE_PERMISSIONS,approveOrg,rejectOrg,loadPendingOrgs,loadDeniedRequests,saveDeniedRequest,clearDeniedRequest,haptic,loadAvatarPhoto,saveAvatarPhoto,registerServiceWorker,notifPermission,requestNotifPermission,fireNotif,notifStreakAtRisk,notifGoalsHit,notifNewDM,notifFeedReaction,notifWeeklyDigest,notifStreakMilestone,scheduleStreakCheck,loadFreezeBank,saveFreezeBank,maybeEarnFreeze,useStreakFreeze,loadPacerMemory,savePacerMemory,updatePacerMemoryFromJournal,detectLogTimePattern,sendWeeklyDigestEmail,loadUnlockedMilestones,saveUnlockedMilestones,getMilestoneDefinitions,computeMilestoneTotals,checkNewMilestones,loadCrewAnnouncement,saveCrewAnnouncement,loadCrewOfficialChallenge,saveCrewOfficialChallenge,loadCrewSlug,saveCrewSlug,resolveCrewSlug} from './shared.js';
 
 // ── Presence display constants ────────────────────────────────────────────────
@@ -6281,7 +6278,6 @@ function SideNav({ view, navigateTo, currentUser, orgId, communities, messaging,
 
  const navItems = [
   { id: "home", icon: "\u{1F3E0}", label: "Home", isGroup: true },
-  { id: "workspace", icon: "🗂️", label: "Workspace", isWorkspaceGroup: true },
 
   { id: "crews", icon: "⚡", label: "Crews", badge: communityPendingCount > 0 ? String(communityPendingCount) : null, isComGroup: true },
   { id: "messages", icon: "\u{1F4AC}", label: "Messages", badge: totalUnread > 0 ? (totalUnread > 9 ? "9+" : String(totalUnread)) : null },
@@ -6320,10 +6316,9 @@ function SideNav({ view, navigateTo, currentUser, orgId, communities, messaging,
    <nav style={{ display: "flex", flexDirection: "column", gap: "2px", padding: "8px 10px" }}>
     {navItems.map(item => {
      const isActive = item.isGroup ? homeGroupViews.includes(view) : (view === item.id);
-     const isWorkspaceActive = !!(item.isWorkspaceGroup && view === "workspace");
      const isOrgActive = false;
      const isComActive = item.isComGroup && view === "crews";
-     const anyActive = isActive || isOrgActive || isComActive || isWorkspaceActive;
+     const anyActive = isActive || isOrgActive || isComActive;
      return (
       <React.Fragment key={item.id}>
        <button
@@ -6352,13 +6347,6 @@ function SideNav({ view, navigateTo, currentUser, orgId, communities, messaging,
          {[["home","\u{1F3E0}","Dashboard"],["journal","\u{1F4D3}","Journal"],["history","\u{1F4C5}","History"]].map(([k,icon,label]) =>
           subBtn(k, icon, label, view===k, () => navigateTo(k))
          )}
-        </div>
-       )}
-
-       {/* Workspace sub-tabs */}
-       {item.isWorkspaceGroup && isWorkspaceActive && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1px", paddingLeft: "8px", marginTop: "2px" }}>
-         {subBtn("workspace","🗂️","CRM & Tools", view==="workspace", () => navigateTo("workspace"))}
         </div>
        )}
 
@@ -6398,8 +6386,7 @@ function MobileBottomNav({ view, navigateTo, orgId, communities, messaging, noti
 
  const homeViews = ["home","history","journal"];
  const isHome = homeViews.includes(view);
- const isWorkspace = view === "workspace";
- const isOrg  = view === "org";
+  const isOrg  = view === "org";
  const isCrew = view === "crews";
  const isMore = ["messages","settings","history","journal"].includes(view);
 
@@ -6434,12 +6421,6 @@ function MobileBottomNav({ view, navigateTo, orgId, communities, messaging, noti
   </svg>
  );
 
- const IconWorkspace = ({ active }) => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "var(--accent)" : "var(--text-dim)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-   <rect x="2" y="3" width="20" height="14" rx="2"/>
-   <path d="M8 21h8M12 17v4"/>
-  </svg>
- );
 
  // Main 4 tabs
  const mainTabs = [
@@ -6457,7 +6438,7 @@ function MobileBottomNav({ view, navigateTo, orgId, communities, messaging, noti
  // Sub-tab rows
  const homeSubTabs  = [["home","Dashboard"],["journal","Journal"],["history","Stats"]];
  // orgSubTabs removed
- const crewSubTabs  = [["dashboard","Dashboard"],["feed","Pulse"],["compete","Compete"],["members","Members"]];
+ const crewSubTabs  = [["dashboard","Dashboard"],["feed","Pulse"],["members","Members"]];
 
  const showSubTabs  = isHome || isCrew;
  const subTabs      = isHome ? homeSubTabs : crewSubTabs;
@@ -6792,7 +6773,7 @@ export default function App({ authUser }) {
  const [appFeed, setAppFeed] = useState([]);
  function viewFromHash() {
   const h = window.location.hash.replace(/^#\/?/, "") || "home";
-  const valid = ["home","org","crews","workspace","tracker","history","journal","messages","settings","feed","compete","leaderboard","dashboard","focus"];
+  const valid = ["home","org","crews","tracker","history","journal","messages","settings","feed","compete","leaderboard","dashboard","focus"];
   return valid.includes(h) ? h : "home";
  }
  const [view,setView]=useState(viewFromHash);
@@ -6884,8 +6865,6 @@ export default function App({ authUser }) {
  const [paywallDefaultTier,setPaywallTier]=useState("pro");
  const [isPro,setIsPro]=useState(false);
  const [isElite,setIsElite]=useState(false);
- const [showIndividualReport,setShowIndividualReport]=useState(false);
- const [showCrewReport,setShowCrewReport]=useState(false);
  const [reportCrewId,setReportCrewId]=useState(null);
  const [usageStatus,setUsageStatus]=useState(null); // full usage object for credit warnings
  const [isFreePlan,setIsFreePlan]=useState(true); // assume free until checked
@@ -7116,8 +7095,8 @@ export default function App({ authUser }) {
   } else {
    // Default — time-based
    const defaults = {
-    morning: { text: "Morning. Make it count.", actions: [{ label: "Start Focus Session", icon: "⚡", view: "workspace" }, { label: "Log activity", icon: "📊", view: "tracker" }] },
-    midday:  { text: "Midday check-in.", actions: [{ label: "Start Focus Session", icon: "⚡", view: "workspace" }, { label: "Log activity", icon: "📊", view: "tracker" }] },
+    morning: { text: "Morning. Make it count.", actions: [{ label: "Log activity", icon: "⚡", view: "tracker" }, { label: "Log activity", icon: "📊", view: "tracker" }] },
+    midday:  { text: "Midday check-in.", actions: [{ label: "Log activity", icon: "⚡", view: "tracker" }, { label: "Log activity", icon: "📊", view: "tracker" }] },
     evening: { text: "Day's almost done.", actions: [{ label: "Log activity", icon: "📊", view: "tracker" }, { label: "Reflect", icon: "🔍", view: "journal", journalTemplate: "daily", journalMode: "reflect" }] },
    };
    const bucket = hour < 12 ? "morning" : hour < 17 ? "midday" : "evening";
@@ -8626,12 +8605,12 @@ ${text}
    {modal==="edit"&&editDate&&<EditDayModal date={editDate} initialData={editDate===todayStr()?{...counts,_notes:notes}:myData[editDate]||{}} industryConfig={indConfig} onClose={()=>{setModal(null);setEditDate(null);}} onSave={data=>{haptic.success();commitEdit(editDate,data);}}/>}
 
    <div style={{...s.container, transform: pullY > 0 ? `translateY(${pullY}px)` : undefined, transition: pullY === 0 && !pullRefreshing ? "transform 0.3s ease" : undefined }}
-    onTouchStart={(isMobile && view !== "workspace") ? onPullTouchStart : undefined}
-    onTouchMove={(isMobile && view !== "workspace") ? onPullTouchMove : undefined}
-    onTouchEnd={(isMobile && view !== "workspace") ? onPullTouchEnd : undefined}
+    onTouchStart={isMobile ? onPullTouchStart : undefined}
+    onTouchMove={isMobile ? onPullTouchMove : undefined}
+    onTouchEnd={isMobile ? onPullTouchEnd : undefined}
    >
     {/* Pull-to-refresh indicator */}
-    {isMobile && view !== "workspace" && (pullY > 0 || pullRefreshing) && (
+    {isMobile && (pullY > 0 || pullRefreshing) && (
      <div style={{ position: "fixed", top: `calc(env(safe-area-inset-top,0px) + 110px + ${pullRefreshing ? 0 : Math.max(0, pullY * 0.4 - 8)}px)`, left: "50%", transform: "translateX(-50%)", zIndex: 999, display: "flex", alignItems: "center", gap: "7px", background: "var(--bg-1)", border: "1px solid var(--border-1)", borderRadius: "20px", padding: "7px 14px", boxShadow: "0 4px 16px rgba(0,0,0,0.2)", transition: pullRefreshing ? "top 0.2s ease" : undefined }}>
       {pullRefreshing
        ? <><div style={{ width: "14px", height: "14px", border: "2px solid rgba(29,201,232,0.3)", borderTop: "2px solid var(--accent)", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} /><span style={{ fontSize: "0.76rem", color: "var(--accent)", fontWeight: "700", fontFamily: "'DM Sans',system-ui,sans-serif" }}>Refreshing…</span></>
@@ -8758,7 +8737,7 @@ ${text}
     )}
     {currentUser && view === "crews" && (
      <div style={{ display:"flex", gap:"4px", padding:"0 0 14px 0", overflowX:"auto", WebkitOverflowScrolling:"touch", scrollbarWidth:"none", msOverflowStyle:"none" }}>
-      {[["dashboard","Dashboard"],["feed","Pulse"],["compete","Compete"],["members","Members"]].map(([t,label]) => {
+      {[["dashboard","Dashboard"],["feed","Pulse"],["members","Members"]].map(([t,label]) => {
        const comPendingTotal = Object.values(communityPendingRequests||{}).reduce((s,a)=>s+(a?.length||0),0);
        const active = comTab === t;
        return (
@@ -9121,24 +9100,6 @@ ${text}
     </>}
 
     {/* FOCUS SESSION — separate view */}
-    {view==="workspace"&&currentUser&&(
-     <FocusSession
-      currentUser={currentUser}
-      authUser={authUser}
-      plan={usageStatus?.plan||"free"}
-      myGoals={myGoals}
-      indConfig={indConfig}
-      onShowPaywall={()=>{setPaywallTier("pro");setShowPaywall(true);}}
-      onShowElitePaywall={()=>{setPaywallTier("elite");setShowPaywall(true);}}
-      onNavigateTo={navigateTo}
-      trackerCounts={counts}
-      trackerSetCounts={setCounts}
-      trackerActiveMetrics={activeMetrics}
-      trackerNotes={notes}
-      trackerSetNotes={setNotes}
-      trackerSaveDay={saveDay}
-     />
-    )}
 
     {/* HISTORY */}
     {view==="history"&&<>
@@ -9167,7 +9128,7 @@ ${text}
      />
      <div style={s.histTopRow}>
       {/* ── Analytics Report CTA ── */}
-      <button onClick={()=>setShowIndividualReport(true)}
+      <button onClick={()=>null /* removed */}
        style={{ display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",boxSizing:"border-box",
         background:"linear-gradient(135deg,rgba(29,201,232,0.08) 0%,rgba(168,85,247,0.05) 100%)",
         border:"1px solid rgba(29,201,232,0.2)",borderRadius:"14px",padding:"14px 16px",
@@ -9356,24 +9317,6 @@ ${text}
     />
    )}
   </div>
-  <PacerPaywall open={showPaywall} onClose={() => setShowPaywall(false)} onUpgradeSuccess={() => { refreshUsage(); }} />
-  {showIndividualReport && currentUser && (
-   <IndividualReport
-    currentUser={currentUser}
-    myData={(() => {
-      if (isPro || !myData) return myData;
-      const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 3);
-      const cutoffStr = cutoff.toISOString().slice(0, 10);
-      return Object.fromEntries(Object.entries(myData).filter(([d]) => d >= cutoffStr));
-    })()}
-    industryConfig={indConfig}
-    myGoals={myGoals}
-    streak={computeStreak(myData, getProtectedDates(myFreezes))}
-    isPro={isPro}
-    onShowPaywall={() => setShowPaywall(true)}
-    onClose={() => setShowIndividualReport(false)}
-   />
-  )}
   {showCrewReport && (()=>{
    const reportCom = (communities||[]).find(c=>c.id===reportCrewId) || communities?.[0];
    const reportMembers = reportCom ? (communityMembers[reportCom.id]||[]).filter(m=>m.userId||m.id) : [];
@@ -10307,8 +10250,7 @@ function PacerCompanion({ currentUser, myData, industryConfig, myGoals, streak, 
   const workspaceCheckTimer = useRef(null);
 
   useEffect(() => {
-    const isWorkspace = view === "workspace";
-    const engLevel = pacerSettings?.engagement || "high";
+        const engLevel = pacerSettings?.engagement || "high";
     if (engLevel === "low") return;
 
     if (isWorkspace) {
@@ -10332,7 +10274,7 @@ function PacerCompanion({ currentUser, myData, industryConfig, myGoals, streak, 
 
       // ── 20-min check-in: if they've been in workspace 20min and <40% ──
       workspaceCheckTimer.current = setTimeout(() => {
-        if (view !== "workspace") return;
+        if (view !== "tracker") return;
         const cur = todayPct || 0;
         if (cur < 40 && !firedToday["20min"]) {
           firedToday["20min"] = true;
@@ -10344,7 +10286,7 @@ function PacerCompanion({ currentUser, myData, industryConfig, myGoals, streak, 
 
       // ── Stall detection: no progress for 30 minutes after some activity ──
       function checkForStall() {
-        if (view !== "workspace") return;
+        if (view !== "tracker") return;
         const cur = todayPct || 0;
         const prev = workspaceLastPct.current || 0;
         if (cur > 0 && cur === prev && cur < 90 && !firedToday[`stall-${cur}`]) {
@@ -10384,7 +10326,7 @@ function PacerCompanion({ currentUser, myData, industryConfig, myGoals, streak, 
 
   // React to progress changes while in workspace — Pacer notices momentum
   useEffect(() => {
-    if (view !== "workspace") return;
+    if (view !== "tracker") return;
     const pct = todayPct || 0;
     const prev = workspaceLastPct.current;
     if (prev === null) { workspaceLastPct.current = pct; return; }
@@ -11963,7 +11905,7 @@ ${text}` }], max_tokens: 80, call_type: "pacer" })
           )}
 
           {/* Usage bar — free users near/at limit */}
-          <PacerUsageBar onUpgradeClick={() => onShowPaywall?.()} />
+          
           {/* Input — padding accounts for safe area on mobile */}
           <div style={{
             padding: isMobileDevice
@@ -12359,7 +12301,7 @@ function HomeScreen({ currentUser, myData, indConfig, myGoals, activeTrack,
   const streakVal = computeStreak(myData)?.current || 0;
   const newFeed = feedActivitySince;
 
-  const ws = (label, detail, urgent=false) => ({ id:"workspace", icon:"⚡", label, actionKey:"workspace", urgent, detail });
+  const ws = (label, detail, urgent=false) => ({ id:"tracker", icon:"⚡", label, actionKey:"tracker", urgent, detail });
   const jn = (label, detail) => ({ id:"journal", icon:"📓", label, actionKey:"journal", urgent:false, detail });
   const hi = (label) => ({ id:"history", icon:"📈", label, actionKey:"history", urgent:false });
   const cm = () => ({ id:"community", icon:"👥", label:`${newFeed} new post${newFeed>1?"s":""}`, actionKey:"community", urgent:false });
@@ -12426,7 +12368,7 @@ function HomeScreen({ currentUser, myData, indConfig, myGoals, activeTrack,
  function handleCommandTile(tile) {
   haptic.medium();
   const key = tile.actionKey;
-  if (key === "workspace") onNavigate("workspace");
+  if (key === "workspace") onNavigate("tracker");
   else if (key === "journal")   onNavigate("journal");
   else if (key === "history")   onNavigate("history");
   else if (key === "community") { storageSet(ns(lastFeedVisitKey), Date.now().toString()).catch(()=>{}); setFeedActivitySince(0); onNavigate("crews"); }
@@ -12734,7 +12676,7 @@ Under 260 words. Direct. No disclaimers. No "based on my knowledge" hedges.`;
       : todayPct === 0 ? "Start Logging →"
       : "Keep Going →";
      return (
-      <button onClick={() => onNavigate("workspace")}
+      <button onClick={() => onNavigate("tracker")}
        style={{ marginTop: "14px", width: "100%", background: "linear-gradient(135deg,#1DC9E8 0%,#0EA5C9 100%)", color: "#000", border: "none", padding: "14px 20px", borderRadius: "12px", fontWeight: "900", fontSize: "1rem", cursor: "pointer", fontFamily: F, letterSpacing: "-0.01em", boxShadow: "0 3px 14px rgba(29,201,232,0.25)", WebkitTapHighlightColor: "transparent" }}>
        {label}
       </button>
@@ -14512,7 +14454,7 @@ function CommunitiesView({ currentUser, users, allUsersData, allUserGoals, indus
                 <>
                   <button onClick={() => setShowShareCard(v => !v)}
                     style={{ background: "none", border: "1px solid var(--border-1)", color: "var(--text-muted)", padding: "6px 10px", borderRadius: "8px", fontSize: "0.75rem", cursor: "pointer", fontFamily: F }}>🔗 Share</button>
-                  <button onClick={() => { setReportCrewId(activeCom?.id || null); setShowCrewReport(true); }}
+                  <button onClick={() => { setReportCrewId(activeCom?.id || null); null /* removed */; }}
                     style={{ background: "none", border: "1px solid var(--border-1)", color: "var(--text-muted)", padding: "6px 10px", borderRadius: "8px", fontSize: "0.75rem", cursor: "pointer", fontFamily: F }}>📊 Report</button>
                 </>
               )}
