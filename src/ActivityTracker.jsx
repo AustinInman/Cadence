@@ -155,7 +155,7 @@ function MetricCard({metric,value,goal,onChange,flashDir,note,onNoteChange,isMob
 // ─────────────────────────────────────────────────────────────────────────────
 // ── PacerHistoryInsight — Pacer's read on your history, shown at top ─────────
 // ─────────────────────────────────────────────────────────────────────────────
-function PacerHistoryInsight({ myData, indConfig, myGoals, currentUser, streak }) {
+function PacerHistoryInsight({ myData, indConfig, myGoals, myGoalPeriods, currentUser, streak }) {
  const F = "'DM Sans',system-ui,sans-serif";
  const cacheKey = currentUser ? `pacer-history-insight-${currentUser.id}-${weekKey(todayStr())}` : null;
  const [insight, setInsight] = useState(null);
@@ -187,10 +187,10 @@ function PacerHistoryInsight({ myData, indConfig, myGoals, currentUser, streak }
   });
 
   const avg30 = last30.length
-   ? Math.round(last30.reduce((s,d) => s + computeGoalPct(myData[d]||{}, metrics, myGoals), 0) / last30.length)
+   ? Math.round(last30.reduce((s,d) => s + computeGoalPct(myData[d]||{}, metrics, myGoals, myGoalPeriods), 0) / last30.length)
    : 0;
   const avg90 = last90.length
-   ? Math.round(last90.reduce((s,d) => s + computeGoalPct(myData[d]||{}, metrics, myGoals), 0) / last90.length)
+   ? Math.round(last90.reduce((s,d) => s + computeGoalPct(myData[d]||{}, metrics, myGoals, myGoalPeriods), 0) / last90.length)
    : 0;
 
   // Best and worst months
@@ -198,7 +198,7 @@ function PacerHistoryInsight({ myData, indConfig, myGoals, currentUser, streak }
   for (const d of allDays) {
    const mk = monthKey(d);
    if (!byMonth[mk]) byMonth[mk] = [];
-   byMonth[mk].push(computeGoalPct(myData[d]||{}, metrics, myGoals));
+   byMonth[mk].push(computeGoalPct(myData[d]||{}, metrics, myGoals, myGoalPeriods));
   }
   const monthAvgs = Object.entries(byMonth).map(([mk, pcts]) => ({
    mk, avg: Math.round(pcts.reduce((s,v)=>s+v,0)/pcts.length)
@@ -211,7 +211,7 @@ function PacerHistoryInsight({ myData, indConfig, myGoals, currentUser, streak }
   for (const d of allDays) {
    const dow = new Date(d + "T12:00:00").getDay();
    if (dow >= 1 && dow <= 5) {
-    const pct = computeGoalPct(myData[d]||{}, metrics, myGoals);
+    const pct = computeGoalPct(myData[d]||{}, metrics, myGoals, myGoalPeriods);
     dowTotals[dow].push(pct);
    }
   }
@@ -2648,7 +2648,7 @@ function ReflectionsJournal({ userId }) {
  );
 }
 
-function ProfileSettingsModal({user, allUsers, admins, teams, industryConfigs, industryConfig, userGoals, pins, isSuperAdmin,
+function ProfileSettingsModal({user, allUsers, admins, teams, industryConfigs, industryConfig, userGoals, userGoalPeriods, pins, isSuperAdmin,
  onRename, onChangeIndustry, onSaveGoals, onSaveMetrics, onSetPin, onRemovePin,
  onSwitch, onAddNew, onDelete, onClose, onSendFeedback, myData, myFreezes}) {
 
@@ -2670,6 +2670,7 @@ function ProfileSettingsModal({user, allUsers, admins, teams, industryConfigs, i
   for(const m of metrics) g[m.key]=(userGoals&&userGoals[m.key]!=null)?userGoals[m.key]:m.defaultGoal;
   return g;
  });
+ const [goalPeriods,setGoalPeriods]=useState(()=>({...(userGoalPeriods||{})}));
 
  const hasPin=!!pins[user.id];
  const [pinMode,setPinMode]=useState(null); // "set" | "change" | "remove"
@@ -2805,21 +2806,35 @@ function ProfileSettingsModal({user, allUsers, admins, teams, industryConfigs, i
         <button style={s.primaryBtn} onClick={()=>{if(onSaveMetrics)onSaveMetrics(editableMetrics);setEditingMetrics(false);}}>Save Metrics</button>
        </div>
       </>) : (<>
-       {metrics.map(m=>(
-        <div key={m.key} style={s.editRow}>
-         <div style={{...s.x2,background:m.color||"var(--accent)"}}/>
-         <div style={s.editLabel}>{m.label}</div>
-         <div style={s.fac6}>
-          <input style={s.x5} type="number" min="0"
-           value={goals[m.key]??0}
-           onChange={e=>{const n=parseInt(e.target.value);if(!isNaN(n)&&n>=0)setGoals(g=>({...g,[m.key]:n}));}}/>
-          <span style={s.dim8}>/day</span>
+       {metrics.map(m=>{
+        const period = goalPeriods[m.key] || "daily";
+        const periodLabel = { daily:"/ day", weekly:"/ wk", monthly:"/ mo", annual:"/ yr" }[period];
+        return (
+        <div key={m.key} style={{display:"flex",flexDirection:"column",gap:"6px",padding:"10px 0",borderBottom:"1px solid var(--border-1)"}}>
+         <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+          <div style={{...s.x2,background:m.color||"var(--accent)"}}/>
+          <div style={{...s.editLabel,flex:1}}>{m.label}</div>
+          <div style={{display:"flex",alignItems:"center",gap:"5px"}}>
+           <input style={s.x5} type="number" min="0"
+            value={goals[m.key]??0}
+            onChange={e=>{const n=parseInt(e.target.value);if(!isNaN(n)&&n>=0)setGoals(g=>({...g,[m.key]:n}));}}/>
+           <span style={{...s.dim8,minWidth:"28px"}}>{periodLabel}</span>
+          </div>
+         </div>
+         <div style={{display:"flex",gap:"4px",paddingLeft:"18px"}}>
+          {["daily","weekly","monthly","annual"].map(p=>(
+           <button key={p} onClick={()=>setGoalPeriods(gp=>({...gp,[m.key]:p}))}
+            style={{fontSize:"0.6rem",fontWeight:period===p?"800":"500",padding:"2px 7px",borderRadius:"5px",border:`1px solid ${period===p?"rgba(29,201,232,0.5)":"var(--border-1)"}`,background:period===p?"rgba(29,201,232,0.1)":"transparent",color:period===p?"var(--accent)":"var(--text-muted)",cursor:"pointer",fontFamily:F,textTransform:"capitalize",WebkitTapHighlightColor:"transparent"}}>
+            {p}
+           </button>
+          ))}
          </div>
         </div>
-       ))}
+        );
+       })}
        <div style={s.mActions}>
         <button style={s.secondaryBtn} onClick={onClose}>Cancel</button>
-        <button style={s.primaryBtn} onClick={()=>onSaveGoals(goals)}>Save Goals</button>
+        <button style={s.primaryBtn} onClick={()=>onSaveGoals(goals,null,null,goalPeriods)}>Save Goals</button>
        </div>
       </>)}
      </>}
@@ -4112,7 +4127,7 @@ function PacerReflectCallback({ templateId, myData, myGoals, industryConfig, cur
 
 // ── PacerPlanInsight — AI analysis shown at top of Plan write step ────────────
 // Shows a real data card + one AI coaching line. Fires once per session per template.
-function PacerPlanInsight({ templateId, myData, myGoals, industryConfig, currentUser }) {
+function PacerPlanInsight({ templateId, myData, myGoals, myGoalPeriods, industryConfig, currentUser }) {
  const F = "'DM Sans',system-ui,sans-serif";
  const [insight, setInsight] = useState(null);
  const [loading, setLoading] = useState(false);
@@ -4148,20 +4163,20 @@ function PacerPlanInsight({ templateId, myData, myGoals, industryConfig, current
 
   // ── Core analytics ──────────────────────────────────────────────────────
   // Goal % per day
-  const goalPcts = allDays.map(d => computeGoalPct(myData[d]||{}, metrics, myGoals));
+  const goalPcts = allDays.map(d => computeGoalPct(myData[d]||{}, metrics, myGoals, myGoalPeriods));
   const avgGoalPct = goalPcts.length ? Math.round(goalPcts.reduce((s,v)=>s+v,0)/goalPcts.length) : 0;
 
   // 30-day avg
   const last30 = allDays.filter(d => (new Date(today)-new Date(d))/86400000 <= 30);
   const avg30 = last30.length
-   ? Math.round(last30.reduce((s,d)=>s+computeGoalPct(myData[d]||{},metrics,myGoals),0)/last30.length)
+   ? Math.round(last30.reduce((s,d)=>s+computeGoalPct(myData[d]||{},metrics,myGoals,myGoalPeriods),0)/last30.length)
    : avgGoalPct;
 
   // Day-of-week averages
   const dowBuckets = {1:[],2:[],3:[],4:[],5:[]};
   for (const d of allDays) {
    const dow = new Date(d + "T12:00:00").getDay();
-   if (dowBuckets[dow]) dowBuckets[dow].push(computeGoalPct(myData[d]||{}, metrics, myGoals));
+   if (dowBuckets[dow]) dowBuckets[dow].push(computeGoalPct(myData[d]||{}, metrics, myGoals, myGoalPeriods));
   }
   const dowAvgs = Object.entries(dowBuckets)
    .filter(([,arr]) => arr.length >= 1)
@@ -4187,7 +4202,7 @@ function PacerPlanInsight({ templateId, myData, myGoals, industryConfig, current
    if (myData[dk] && Object.values(myData[dk]).some(v=>typeof v==="number"&&v>0)) lastWeekDays.push({ dk, data: myData[dk] });
   }
   const lastWeekAvg = lastWeekDays.length
-   ? Math.round(lastWeekDays.reduce((s,d)=>s+computeGoalPct(d.data,metrics,myGoals),0)/lastWeekDays.length) : null;
+   ? Math.round(lastWeekDays.reduce((s,d)=>s+computeGoalPct(d.data,metrics,myGoals,myGoalPeriods),0)/lastWeekDays.length) : null;
 
   // Gaps: consecutive zero-log weekdays
   let maxGap = 0, curGap = 0, totalGapDays = 0;
@@ -4221,7 +4236,7 @@ function PacerPlanInsight({ templateId, myData, myGoals, industryConfig, current
   for (const d of allDays) {
    const mk = monthKey(d);
    if (!byMonth[mk]) byMonth[mk] = [];
-   byMonth[mk].push(computeGoalPct(myData[d]||{},metrics,myGoals));
+   byMonth[mk].push(computeGoalPct(myData[d]||{},metrics,myGoals,myGoalPeriods));
   }
   const monthAvgs = Object.entries(byMonth)
    .map(([mk,pcts]) => ({ mk, avg: Math.round(pcts.reduce((s,v)=>s+v,0)/pcts.length) }))
@@ -4235,7 +4250,7 @@ function PacerPlanInsight({ templateId, myData, myGoals, industryConfig, current
   // Yesterday
   const yd = new Date(todayDate); yd.setDate(yd.getDate()-1);
   const ydk = `${yd.getFullYear()}-${String(yd.getMonth()+1).padStart(2,"0")}-${String(yd.getDate()).padStart(2,"0")}`;
-  const ydPct = myData[ydk] ? computeGoalPct(myData[ydk], metrics, myGoals) : null;
+  const ydPct = myData[ydk] ? computeGoalPct(myData[ydk], metrics, myGoals, myGoalPeriods) : null;
 
   // ── Build data cards per template ──────────────────────────────────────
   let cards = [];
@@ -4765,6 +4780,7 @@ Rules: Questions should be specific to what they want to write about. 3 prompts 
          templateId={template.id}
          myData={myData}
          myGoals={myGoals}
+         myGoalPeriods={myGoalPeriods}
          industryConfig={industryConfig}
          currentUser={currentUser}
         />
@@ -6278,7 +6294,7 @@ function SideNav({ view, navigateTo, currentUser, orgId, communities, messaging,
 
  const navItems = [
   { id: "home", icon: "\u{1F3E0}", label: "Home", isGroup: true },
-
+  { id: "tracker", icon: "📊", label: "Tracker" },
   { id: "crews", icon: "⚡", label: "Crews", badge: communityPendingCount > 0 ? String(communityPendingCount) : null, isComGroup: true },
   { id: "messages", icon: "\u{1F4AC}", label: "Messages", badge: totalUnread > 0 ? (totalUnread > 9 ? "9+" : String(totalUnread)) : null },
   { id: "settings", icon: "\u2699\uFE0F", label: "Settings" },
@@ -6413,6 +6429,11 @@ function MobileBottomNav({ view, navigateTo, orgId, communities, messaging, noti
    <path d="M17 14c2.2.5 4 2.2 4 4.5"/>
   </svg>
  );
+ const IconTracker = ({ active }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "var(--accent)" : "var(--text-dim)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+   <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+  </svg>
+ );
  const IconMore = ({ active }) => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active || moreOpen ? "var(--accent)" : "var(--text-dim)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
    <line x1="3" y1="6" x2="21" y2="6"/>
@@ -6421,18 +6442,15 @@ function MobileBottomNav({ view, navigateTo, orgId, communities, messaging, noti
   </svg>
  );
 
+ const isTracker = view === "tracker";
 
  // Main 4 tabs
  const mainTabs = [
-  { id: "home",      label: "Home",      Icon: IconHome,      active: isHome },
-  { id: "crews",     label: "Crews",     Icon: IconCrew,      active: isCrew },
-  { id: "more",  label: "More",  Icon: IconMore,  active: isMore, isMore: true },
+  { id: "home",    label: "Home",    Icon: IconHome,    active: isHome },
+  { id: "tracker", label: "Tracker", Icon: IconTracker, active: isTracker },
+  { id: "crews",   label: "Crews",   Icon: IconCrew,    active: isCrew },
+  { id: "more",    label: "More",    Icon: IconMore,    active: isMore, isMore: true },
  ];
- // If solo — always show 4 tabs (Home, solo placeholder, Crews, More)
- // Fill to 4 items if fewer exist
- while (mainTabs.length < 4 && isSolo) {
-  mainTabs.splice(2, 0, { id: "leaderboard_placeholder", label: "", Icon: () => null, active: false, hidden: true });
- }
 
  // Sub-tab rows
  const homeSubTabs  = [["home","Dashboard"],["journal","Journal"],["history","Stats"]];
@@ -6817,6 +6835,7 @@ export default function App({ authUser, pendingInvite = null, isNewUser = false 
  const [appJournalEntries,setAppJournalEntries]=useState([]);
  const [journalEntriesLoaded,setJournalEntriesLoaded]=useState(false);
  const [myGoals,setMyGoals]=useState({});
+ const [myGoalPeriods,setMyGoalPeriods]=useState({}); // { [metricKey]: 'daily'|'weekly'|'monthly'|'annual' }
  const [myFreezes,setMyFreezes]=useState({ count:0, usedDates:[], pto:[], sick:[] });
  const [freezeBank,setFreezeBank]=useState({ count:0, lastEarnedWeek:'', usedDates:[] });
  const [showFreezePrompt,setShowFreezePrompt]=useState(false); // prompt to use freeze when streak breaks
@@ -6829,7 +6848,7 @@ export default function App({ authUser, pendingInvite = null, isNewUser = false 
  const [pacerSettings, setPacerSettings] = useState(() => {
   try {
    const stored = JSON.parse(localStorage.getItem("cadence-pacer-settings") || "{}");
-   return { engagement: "high", tone: "challenging", ...stored };
+   return { engagement: "high", tone: "challenging", hidden: false, ...stored };
   } catch { return { engagement: "high", tone: "challenging" }; }
  });
  function savePacerSettings(s) {
@@ -7720,7 +7739,8 @@ export default function App({ authUser, pendingInvite = null, isNewUser = false 
   }).catch(() => {});
   const ud=allData?allData[user.id]:await loadUserData(user.id);
   const ug=allGoals?allGoals[user.id]:(await storageGet(ns(`at-goals-${user.id}`)))||{};
-  setMyData(ud||{});setMyGoals(ug||{});
+  const ugp=(await storageGet(ns(`at-goalperiods-${user.id}`)))||{};
+  setMyData(ud||{});setMyGoals(ug||{});setMyGoalPeriods(ugp||{});
   loadStreakFreezes(user.id).then(f=>{
    const fData=f||{count:0,usedDates:[],pto:[],sick:[]};
    setMyFreezes(fData);
@@ -8126,9 +8146,13 @@ export default function App({ authUser, pendingInvite = null, isNewUser = false 
 
  const [pinTarget,setPinTarget]=useState(null);
 
- async function saveGoals(goals, trackId, customMetrics) {
+ async function saveGoals(goals, trackId, customMetrics, goalPeriods) {
   setMyGoals(goals);setAllUserGoals(p=>({...p,[currentUser.id]:goals}));
   await storageSet(ns(`at-goals-${currentUser.id}`),goals);
+  if (goalPeriods) {
+   setMyGoalPeriods(goalPeriods);
+   await storageSet(ns(`at-goalperiods-${currentUser.id}`),goalPeriods);
+  }
   // If custom metrics were edited for a track, persist them on the track object
   if (trackId && customMetrics && userTracks) {
    const updatedTracks = (userTracks||[]).map(t =>
@@ -8534,7 +8558,7 @@ export default function App({ authUser, pendingInvite = null, isNewUser = false 
   return result;
  },[users, communityMembers]);
 
- const todayPct=computeGoalPct(counts,industryConfig.weekdayMetrics,myGoals);
+ const todayPct=computeGoalPct(counts,industryConfig.weekdayMetrics,myGoals,myGoalPeriods);
 
  // Compute best day per metric across all data (for crown badges in history)
  const bestDaysAllTime = useMemo(()=>{
@@ -8689,11 +8713,11 @@ export default function App({ authUser, pendingInvite = null, isNewUser = false 
    {modal==="share"&&currentUser&&<ShareModal userName={currentUser.name} allData={myData} liveCounts={counts} industryConfig={indConfig} userGoals={myGoals} selDate={selDate} onClose={()=>setModal(null)}/>}
    {/* Profile switcher removed — users sign out and back in to switch accounts */}
    {modal==="settings"&&currentUser&&<ProfileSettingsModal
-    user={currentUser} allUsers={users} admins={admins} teams={teams} industryConfigs={industryConfigs} industryConfig={indConfig} userGoals={myGoals} pins={pins} isSuperAdmin={isSuperAdmin}
+    user={currentUser} allUsers={users} admins={admins} teams={teams} industryConfigs={industryConfigs} industryConfig={indConfig} userGoals={myGoals} userGoalPeriods={myGoalPeriods} pins={pins} isSuperAdmin={isSuperAdmin}
     myData={myData} myFreezes={myFreezes}
     onRename={n=>{renameUser(n);}}
     onChangeIndustry={changeIndustry}
-    onSaveGoals={(g, trackId, metrics)=>{saveGoals(g, trackId, metrics);}}
+    onSaveGoals={(g, trackId, metrics, goalPeriods)=>{saveGoals(g, trackId, metrics, goalPeriods);}}
     onSaveMetrics={saveMetrics}
     onSetPin={setPinForUser}
     onRemovePin={removePinForUser}
@@ -8990,6 +9014,7 @@ ${text}
       myData={myData}
       indConfig={indConfig}
       myGoals={myGoals}
+      myGoalPeriods={myGoalPeriods}
       activeTrack={userTracks?.find(t=>t.id===activeTrackId)||userTracks?.[0]||null}
       feed={appFeed}
       users={users}
@@ -9026,6 +9051,7 @@ ${text}
       communityPendingRequests={communityPendingRequests}
       orgId={orgId}
       admins={admins}
+      teams={teams}
       presenceMap={presenceMap}
       onOpenDm={(u)=>{ messaging.openDm(u, orgId); navigateTo("messages"); }}
       onNotify={notif=>{ users.filter(u=>u.id!==currentUser?.id).forEach(u=>pushNotification(u.id,notif).catch(()=>{})); }}
@@ -9081,6 +9107,7 @@ ${text}
        myData={myData}
        indConfig={indConfig}
        myGoals={myGoals}
+       myGoalPeriods={myGoalPeriods}
        currentUser={currentUser}
        myFreezes={myFreezes}
        journalEntries={appJournalEntries}
@@ -9185,7 +9212,10 @@ ${text}
       opacity:selDate>todayStr()?0.4:1
      }}>
       {activeMetrics.map(m=>{
-       const goal=(myGoals[m.key]!=null)?myGoals[m.key]:m.defaultGoal;
+       const periodDivisor = { daily:1, weekly:5, monthly:21, annual:260 };
+       const rawGoal=(myGoals[m.key]!=null)?myGoals[m.key]:m.defaultGoal;
+       const period = myGoalPeriods?.[m.key] || "daily";
+       const goal = rawGoal / (periodDivisor[period] || 1);
        return <MetricCard key={m.key} metric={m} value={counts[m.key]||0} goal={goal} onChange={v=>{
            setCounts(p=>{
              const prev=p[m.key]||0;
@@ -9270,6 +9300,7 @@ ${text}
       myData={myData}
       indConfig={indConfig}
       myGoals={myGoals}
+      myGoalPeriods={myGoalPeriods}
       currentUser={currentUser}
       streak={computeStreak(myData, getProtectedDates(myFreezes))}
      />
@@ -9436,13 +9467,14 @@ ${text}
     presenceMap={presenceMap}
    />
    {/* ── PACER AI Companion — persistent across all views ── */}
-   {currentUser && (
+   {currentUser && !pacerSettings.hidden && (
     <PacerCompanion
      currentUser={currentUser}
      pacerSettings={pacerSettings}
      myData={myData}
      industryConfig={indConfig}
      myGoals={myGoals}
+     myGoalPeriods={myGoalPeriods}
      streak={computeStreak(myData, getProtectedDates(myFreezes))}
      todayPct={Math.round(todayPct)}
      orgId={orgId}
@@ -9888,7 +9920,7 @@ function analyzePacerPatterns(myData, metrics, myGoals, days = 14) {
 // and injected into every conversation so Pacer always has history.
 // ─────────────────────────────────────────────────────────────────────────────
 
-function computePacerWeeklyState(myData, metrics, myGoals, streak) {
+function computePacerWeeklyState(myData, metrics, myGoals, streak, myGoalPeriods) {
   // Compute Pacer's current "mood" about the user's trajectory
   // Returns: { state, label, weekAvg, prevWeekAvg, trend, daysLogged, daysSinceActive }
   const today = todayStr();
@@ -9904,7 +9936,7 @@ function computePacerWeeklyState(myData, metrics, myGoals, streak) {
 
   const avg = (days) => {
     if (!days.length) return 0;
-    return Math.round(days.reduce((s, d) => s + computeGoalPct(myData[d] || {}, metrics, myGoals), 0) / days.length);
+    return Math.round(days.reduce((s, d) => s + computeGoalPct(myData[d] || {}, metrics, myGoals, myGoalPeriods), 0) / days.length);
   };
 
   const weekAvg = avg(last5);
@@ -9913,7 +9945,7 @@ function computePacerWeeklyState(myData, metrics, myGoals, streak) {
 
   // Days since last activity logged
   const activeDays = Object.keys(myData)
-    .filter(d => d <= today && !isWeekend(d) && computeGoalPct(myData[d] || {}, metrics, myGoals) > 10)
+    .filter(d => d <= today && !isWeekend(d) && computeGoalPct(myData[d] || {}, metrics, myGoals, myGoalPeriods) > 10)
     .sort();
   const lastActiveDay = activeDays[activeDays.length - 1];
   const daysSinceActive = lastActiveDay
@@ -9939,7 +9971,7 @@ function computePacerWeeklyState(myData, metrics, myGoals, streak) {
 // Shows a real insight computed from the user's actual data.
 // Refreshes once per session (on mount). Cached for 4 hours so it's not
 // re-fetching every time you switch tabs.
-function PacerWorkspaceInsight({ myData, indConfig, myGoals, currentUser, myFreezes, journalEntries }) {
+function PacerWorkspaceInsight({ myData, indConfig, myGoals, myGoalPeriods, currentUser, myFreezes, journalEntries }) {
   const F = "'DM Sans',system-ui,sans-serif";
   const [insight, setInsight] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
@@ -9966,7 +9998,7 @@ function PacerWorkspaceInsight({ myData, indConfig, myGoals, currentUser, myFree
     const dowBuckets = { 1:[], 2:[], 3:[], 4:[], 5:[] };
     allWorkdays.forEach(d => {
       const dow = new Date(d + 'T12:00:00').getDay();
-      if (dowBuckets[dow]) dowBuckets[dow].push(computeGoalPct(myData[d]||{}, metrics, myGoals));
+      if (dowBuckets[dow]) dowBuckets[dow].push(computeGoalPct(myData[d]||{}, metrics, myGoals, myGoalPeriods));
     });
     const dowNames = { 1:'Mondays', 2:'Tuesdays', 3:'Wednesdays', 4:'Thursdays', 5:'Fridays' };
     const dowAvgs = Object.entries(dowBuckets)
@@ -9985,8 +10017,8 @@ function PacerWorkspaceInsight({ myData, indConfig, myGoals, currentUser, myFree
       const ts = new Date(d).getTime();
       return ts >= Date.now()-60*86400000 && ts < Date.now()-30*86400000;
     });
-    const avg30 = last30.length ? Math.round(last30.reduce((s,d)=>s+computeGoalPct(myData[d]||{},metrics,myGoals),0)/last30.length) : null;
-    const avgPrev = prev30.length ? Math.round(prev30.reduce((s,d)=>s+computeGoalPct(myData[d]||{},metrics,myGoals),0)/prev30.length) : null;
+    const avg30 = last30.length ? Math.round(last30.reduce((s,d)=>s+computeGoalPct(myData[d]||{},metrics,myGoals,myGoalPeriods),0)/last30.length) : null;
+    const avgPrev = prev30.length ? Math.round(prev30.reduce((s,d)=>s+computeGoalPct(myData[d]||{},metrics,myGoals,myGoalPeriods),0)/prev30.length) : null;
 
     // Metric-level trend (last 30 days)
     const metricTrends = metrics.slice(0,4).map(m => {
@@ -10062,7 +10094,7 @@ Generate ONE sharp, specific insight this user would actually want to know right
 // Rule: only render if it can reference a real number from the user's data.
 // No pep talks. No "keep the pace." If there's nothing concrete to say, say nothing.
 // ─────────────────────────────────────────────────────────────────────────────
-function PacerWhisper({ variant, todayPct, metricProgress, streak, counts, myGoals, indConfig, myData, style: extraStyle }) {
+function PacerWhisper({ variant, todayPct, metricProgress, streak, counts, myGoals, myGoalPeriods, indConfig, myData, style: extraStyle }) {
  const F = "'DM Sans',system-ui,sans-serif";
  const hour = new Date().getHours();
  const today = todayStr();
@@ -10102,7 +10134,7 @@ function PacerWhisper({ variant, todayPct, metricProgress, streak, counts, myGoa
   const pct = todayPct || 0;
   const last5 = Object.keys(myData || {}).filter(d => d < today && !isWeekend(d)).sort().slice(-5);
   const avg5 = last5.length
-   ? Math.round(last5.reduce((s,d) => s + computeGoalPct(myData[d]||{}, indConfig?.weekdayMetrics||[], myGoals||{}), 0) / last5.length)
+   ? Math.round(last5.reduce((s,d) => s + computeGoalPct(myData[d]||{}, indConfig?.weekdayMetrics||[], myGoals||{}, myGoalPeriods), 0) / last5.length)
    : null;
 
   // Only show when there's a meaningful gap to name — 15+ point delta, or genuinely nothing logged late
@@ -10130,7 +10162,7 @@ function PacerWhisper({ variant, todayPct, metricProgress, streak, counts, myGoa
  );
 }
 
-function PacerCompanion({ currentUser, myData, industryConfig, myGoals, streak, todayPct, orgId, communities, allUsersData, allUserGoals, myFreezes, freezeBank, setShowFreezePrompt, pacerSettings, view, counts, onboardPrompts=[], setOnboardPrompts, onNavigate, onGoSettings, onShowPaywall, isPro=false, usageStatus=null }) {
+function PacerCompanion({ currentUser, myData, industryConfig, myGoals, myGoalPeriods, streak, todayPct, orgId, communities, allUsersData, allUserGoals, myFreezes, freezeBank, setShowFreezePrompt, pacerSettings, view, counts, onboardPrompts=[], setOnboardPrompts, onNavigate, onGoSettings, onShowPaywall, isPro=false, usageStatus=null }) {
   const F = "'DM Sans',system-ui,sans-serif";
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -10369,7 +10401,8 @@ function PacerCompanion({ currentUser, myData, industryConfig, myGoals, streak, 
     myData,
     industryConfig?.weekdayMetrics || [],
     myGoals,
-    streak
+    streak,
+    myGoalPeriods
   );
 
   // ── Workspace presence — Pacer watches you work and speaks up ────────────
@@ -11079,7 +11112,7 @@ Rules:
     } else if (type === "eow") {
       const last5 = Object.keys(myData).filter(d => !isWeekend(d)).sort().slice(-5);
       const weekSummary = last5.map(d => {
-        const dayPct = computeGoalPct(myData[d] || {}, metrics, myGoals);
+        const dayPct = computeGoalPct(myData[d] || {}, metrics, myGoals, myGoalPeriods);
         return `${d}: ${dayPct}%`;
       }).join(", ");
       prompt = `[End-of-week review for ${currentUser?.name}. This week's days: ${weekSummary}. Streak: ${streak?.current || 0} days. Generate a real end-of-week assessment — what kind of week it was, one honest observation about a trend or pattern, and a specific plan recommendation for next week. 3-5 sentences. Sound like a colleague who watched their week, not a generic AI.]`;
@@ -11872,6 +11905,7 @@ ${text}` }], max_tokens: 80, call_type: "pacer" })
               </div>
             </div>
             <button onClick={() => setOpen(false)} style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", padding: "4px 6px", borderRadius: "6px", fontSize: "1rem", lineHeight: 1, flexShrink: 0, WebkitTapHighlightColor: "transparent" }}>✕</button>
+            <button onClick={() => { setOpen(false); if(onGoSettings) onGoSettings("pacer"); }} title="Pacer settings" style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", padding: "4px 6px", borderRadius: "6px", lineHeight: 1, flexShrink: 0, WebkitTapHighlightColor: "transparent", fontSize: "0.85rem" }}>⚙</button>
           </div>
 
           {/* Pending Commitments — compact tracker strip */}
@@ -12084,7 +12118,7 @@ ${text}` }], max_tokens: 80, call_type: "pacer" })
 // ─────────────────────────────────────────────────────────────────────────────
 // ── Milestones — lifetime achievement badges ──────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
-function computeMilestones(myData, myGoals, indConfig) {
+function computeMilestones(myData, myGoals, myGoalPeriods, indConfig) {
  const metrics = indConfig?.weekdayMetrics || [];
  const allDays = Object.keys(myData).filter(d => !isWeekend(d));
  const totalDays = allDays.length;
@@ -12100,7 +12134,7 @@ function computeMilestones(myData, myGoals, indConfig) {
 
  // Days at 100%
  const perfectDays = allDays.filter(d => {
-  const pct = computeGoalPct(myData[d] || {}, metrics, myGoals);
+  const pct = computeGoalPct(myData[d] || {}, metrics, myGoals, myGoalPeriods);
   return pct >= 100;
  }).length;
 
@@ -12113,7 +12147,7 @@ function computeMilestones(myData, myGoals, indConfig) {
  }
  const perfectWeeks = Object.values(weekMap).filter(days => {
   const weekdays = days.filter(d => !isWeekend(d));
-  return weekdays.length >= 5 && weekdays.every(d => computeGoalPct(myData[d]||{}, metrics, myGoals) >= 100);
+  return weekdays.length >= 5 && weekdays.every(d => computeGoalPct(myData[d]||{}, metrics, myGoals, myGoalPeriods) >= 100);
  }).length;
 
  const DEFS = [
@@ -12148,9 +12182,9 @@ function computeMilestones(myData, myGoals, indConfig) {
  return { earned, next, totalDays, perfectDays, perfectWeeks, lifetimeCounts, streak };
 }
 
-function MilestonesCard({ myData, myGoals, indConfig }) {
+function MilestonesCard({ myData, myGoals, myGoalPeriods, indConfig }) {
  const F = "'DM Sans',system-ui,sans-serif";
- const ms = computeMilestones(myData, myGoals, indConfig);
+ const ms = computeMilestones(myData, myGoals, myGoalPeriods, indConfig);
  const [expanded, setExpanded] = useState(false);
  if (!ms.totalDays) return null;
 
@@ -12205,7 +12239,7 @@ function MilestonesCard({ myData, myGoals, indConfig }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // ── GlobalLeaderboard — industry-filtered ranking across all Cadence users ───
 // ─────────────────────────────────────────────────────────────────────────────
-function GlobalLeaderboard({ currentUser, indConfig, myGoals, myData, communities, onNavigateToCrew }) {
+function GlobalLeaderboard({ currentUser, indConfig, myGoals, myGoalPeriods, myData, communities, onNavigateToCrew }) {
  const F = "'DM Sans',system-ui,sans-serif";
  const [filter, setFilter] = useState("industry"); // "industry" | "global"
  const [rows, setRows] = useState([]);
@@ -12247,7 +12281,7 @@ function GlobalLeaderboard({ currentUser, indConfig, myGoals, myData, communitie
    // Add self
    const myWeekdays = Object.keys(myData).filter(d => d >= weekStart && !isWeekend(d));
    const myAvg = myWeekdays.length
-    ? Math.round(myWeekdays.reduce((s,d) => s + computeGoalPct(myData[d]||{}, indConfig?.weekdayMetrics||[], myGoals), 0) / myWeekdays.length)
+    ? Math.round(myWeekdays.reduce((s,d) => s + computeGoalPct(myData[d]||{}, indConfig?.weekdayMetrics||[], myGoals, myGoalPeriods), 0) / myWeekdays.length)
     : 0;
    const selfRow = { userId: currentUser.id, name: currentUser.name, industry: currentUser.industry, weekAvg: myAvg, isSelf: true };
 
@@ -12355,7 +12389,7 @@ function GlobalLeaderboard({ currentUser, indConfig, myGoals, myData, communitie
   </div>
  );
 }
-function HomeScreen({ currentUser, myData, indConfig, myGoals, activeTrack,
+function HomeScreen({ currentUser, myData, indConfig, myGoals, myGoalPeriods, activeTrack,
   feed, users, allUsersData, allUserGoals, industryConfigs,
   orgId, communities, communityMembers, admins, activeSpace,
   userTracks, onNavigate, onPostToFeed, pacerSettings, isPro, onShowPaywall }) {
@@ -12428,7 +12462,7 @@ function HomeScreen({ currentUser, myData, indConfig, myGoals, activeTrack,
   const h = new Date().getHours();
   const isWknd = isWeekend(todayStr());
   const metrics = indConfig?.weekdayMetrics || [];
-  const pct = isWknd || !metrics.length ? null : computeGoalPct(myData[todayStr()]||{}, metrics, myGoals);
+  const pct = isWknd || !metrics.length ? null : computeGoalPct(myData[todayStr()]||{}, metrics, myGoals, myGoalPeriods);
   const streakVal = computeStreak(myData)?.current || 0;
   const newFeed = feedActivitySince;
 
@@ -12521,7 +12555,7 @@ function HomeScreen({ currentUser, myData, indConfig, myGoals, activeTrack,
    const d = new Date(); d.setDate(d.getDate() - i);
    const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
    if (!isWeekend(ds) && myData[ds]) {
-    const pct = computeGoalPct(myData[ds]||{}, indConfig?.weekdayMetrics||[], myGoals||{});
+    const pct = computeGoalPct(myData[ds]||{}, indConfig?.weekdayMetrics||[], myGoals||{}, myGoalPeriods);
     days.push({ ds, pct });
    }
   }
@@ -12535,7 +12569,7 @@ function HomeScreen({ currentUser, myData, indConfig, myGoals, activeTrack,
  const todayPct = isWeekendToday ? null : (() => {
   const metrics = indConfig?.weekdayMetrics || [];
   if (!metrics.length) return null;
-  return computeGoalPct(todayData, metrics, myGoals);
+  return computeGoalPct(todayData, metrics, myGoals, myGoalPeriods);
  })();
 
  const pacerCommand = useMemo(() => buildDashCommand(), [todayPct, feedActivitySince, commandDismissed]);
@@ -12816,7 +12850,7 @@ Under 260 words. Direct. No disclaimers. No "based on my knowledge" hedges.`;
 
     {/* Inline Pacer whisper */}
     {!isWeekendToday && (
-     <PacerWhisper variant="home" todayPct={todayPct} myData={myData} indConfig={indConfig} myGoals={myGoals} style={{ marginTop: "8px" }} />
+     <PacerWhisper variant="home" todayPct={todayPct} myData={myData} indConfig={indConfig} myGoals={myGoals} myGoalPeriods={myGoalPeriods} style={{ marginTop: "8px" }} />
     )}
    </div>
 
@@ -14417,7 +14451,7 @@ function ActiveChallengeCard({ communityId, currentUser, allUsersData, allUserGo
 // ── CommunitiesView — full rework ─────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════
 function CommunitiesView({ currentUser, users, allUsersData, allUserGoals, industryConfigs,
-  communities, communityMembers, communityPendingRequests, orgId, admins, presenceMap, onOpenDm, onNotify, isAdmin, activeSpace,
+  communities, communityMembers, communityPendingRequests, orgId, admins, teams, presenceMap, onOpenDm, onNotify, isAdmin, activeSpace,
   onApproveCommunityRequest, onRejectCommunityRequest, onJoinCommunity, tab, onSwitchTab, isPro, onShowPaywall }) {
   const F = "'DM Sans',system-ui,sans-serif";
   const activeTab = tab || "dashboard";

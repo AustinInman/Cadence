@@ -104,16 +104,20 @@ Deno.serve(async (req) => {
         const userLines: string[] = [];
 
         for (const user of users) {
-          const { data: dataRow }  = await sb.from("kv_store").select("value").eq("key", `${orgId}::at-data-${user.id}`).maybeSingle();
-          const { data: goalsRow } = await sb.from("kv_store").select("value").eq("key", `${orgId}::at-goals-${user.id}`).maybeSingle();
+          const { data: dataRow }    = await sb.from("kv_store").select("value").eq("key", `${orgId}::at-data-${user.id}`).maybeSingle();
+          const { data: goalsRow }   = await sb.from("kv_store").select("value").eq("key", `${orgId}::at-goals-${user.id}`).maybeSingle();
+          const { data: metricsRow } = await sb.from("kv_store").select("value").eq("key", `${orgId}::at-report-metrics-${user.id}`).maybeSingle();
 
           const allData:   Record<string, Record<string, number>> = (dataRow as any)?.value  || {};
           const goals:     Record<string, number>                 = (goalsRow as any)?.value || {};
           const todayData: Record<string, number>                 = allData[today] || {};
 
-          // All metrics with a goal > 0, in a sensible order
+          // If user has saved a metric filter, use it — otherwise all metrics with goal > 0
           const skipKeys = ["_notes", "_logTs", "disqualified"];
-          const metricKeys = Object.keys(goals).filter(k => goals[k] > 0 && !skipKeys.includes(k));
+          const allGoalKeys = Object.keys(goals).filter(k => goals[k] > 0 && !skipKeys.includes(k));
+          const savedFilter: string[] | null = Array.isArray((metricsRow as any)?.value) ? (metricsRow as any).value : null;
+          const metricKeys = savedFilter ? savedFilter.filter(k => allGoalKeys.includes(k)) : allGoalKeys;
+
           if (!metricKeys.length) continue;
 
           const streak     = computeStreak(allData, goals);

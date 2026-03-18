@@ -1871,7 +1871,7 @@ function UserAvatar({ user, size=32, fontSize=null }) {
 }
 
 // ── DailyReportTab ────────────────────────────────────────────────────────────
-function DailyReportTab({ user }) {
+function DailyReportTab({ user, industryConfig }) {
   const F  = "'DM Sans',system-ui,sans-serif";
   const TA = "var(--accent,#1DC9E8)";
   const TM = "var(--text-muted)";
@@ -1885,13 +1885,22 @@ function DailyReportTab({ user }) {
   const [loading, setLoading]       = React.useState(true);
   const [testSending, setTestSending] = React.useState(false);
   const [testResult, setTestResult]   = React.useState(null);
-  const reportKey = `${user?.orgId||"solo-"+user?.id}::at-report-recipients`;
+  const [reportMetrics, setReportMetrics] = React.useState(null); // null = all; array = selected keys
+  const reportKey     = `${user?.orgId||"solo-"+user?.id}::at-report-recipients`;
+  const metricsKey    = user ? `${user?.orgId||"solo-"+user?.id}::at-report-metrics-${user.id}` : null;
+
+  const allMetrics = industryConfig?.weekdayMetrics || [];
 
   React.useEffect(() => {
     if (!window._sb || !user) return;
-    window._sb.from("kv_store").select("value").eq("key", reportKey).maybeSingle()
-      .then(({data}) => { setRecipients(Array.isArray(data?.value) ? data.value : []); setLoading(false); })
-      .catch(() => setLoading(false));
+    Promise.all([
+      window._sb.from("kv_store").select("value").eq("key", reportKey).maybeSingle(),
+      metricsKey ? window._sb.from("kv_store").select("value").eq("key", metricsKey).maybeSingle() : Promise.resolve({data:null}),
+    ]).then(([{data: rd}, {data: md}]) => {
+      setRecipients(Array.isArray(rd?.value) ? rd.value : []);
+      setReportMetrics(Array.isArray(md?.value) ? md.value : null);
+      setLoading(false);
+    }).catch(() => setLoading(false));
   }, [user?.id]);
 
   const isValidEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
@@ -1911,6 +1920,22 @@ function DailyReportTab({ user }) {
     setRecipients(updated);
   }
 
+  async function toggleMetric(key) {
+    if (!metricsKey) return;
+    const current = reportMetrics ?? allMetrics.map(m => m.key);
+    const next = current.includes(key) ? current.filter(k => k !== key) : [...current, key];
+    // null means "all" — if they've re-selected everything, store null
+    const toStore = next.length === allMetrics.length ? null : next;
+    setReportMetrics(toStore);
+    try {
+      if (toStore === null) {
+        await window._sb.from("kv_store").delete().eq("key", metricsKey);
+      } else {
+        await window._sb.from("kv_store").upsert({key:metricsKey,value:toStore,updated_at:new Date().toISOString()},{onConflict:"key"});
+      }
+    } catch(e) {}
+  }
+
   async function sendTest() {
     setTestSending(true); setTestResult(null);
     try {
@@ -1923,6 +1948,8 @@ function DailyReportTab({ user }) {
     } catch { setTestResult("error"); }
     setTestSending(false);
   }
+
+  const activeKeys = reportMetrics ?? allMetrics.map(m => m.key);
 
   return (
     <div style={{maxWidth:"480px",display:"flex",flexDirection:"column",gap:"20px"}}>
@@ -1955,6 +1982,31 @@ function DailyReportTab({ user }) {
           </button>
         </div>
       </div>
+
+      {/* Metric toggles */}
+      {allMetrics.length > 0 && (
+        <div>
+          <div style={{fontSize:"0.7rem",fontWeight:"800",color:TD,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:"10px"}}>Include in report</div>
+          <div style={{display:"flex",flexDirection:"column",gap:"6px"}}>
+            {allMetrics.map(m => {
+              const on = activeKeys.includes(m.key);
+              return (
+                <button key={m.key} onClick={()=>toggleMetric(m.key)}
+                  style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:on?"rgba(29,201,232,0.05)":BG1,border:`1px solid ${on?"rgba(29,201,232,0.3)":B1}`,borderRadius:"10px",cursor:"pointer",fontFamily:F,WebkitTapHighlightColor:"transparent"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+                    <div style={{width:"8px",height:"8px",borderRadius:"50%",background:m.color||TA,flexShrink:0}}/>
+                    <span style={{fontSize:"0.88rem",fontWeight:"600",color:on?"var(--text-primary)":"var(--text-muted)"}}>{m.label}</span>
+                  </div>
+                  <div style={{width:"36px",height:"22px",borderRadius:"11px",background:on?TA:"var(--bg-3)",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+                    <div style={{position:"absolute",top:"3px",left:on?"17px":"3px",width:"16px",height:"16px",borderRadius:"50%",background:"#fff",transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.3)"}}/>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div style={{background:BG1,border:`1px solid ${B1}`,borderRadius:"12px",padding:"14px 16px"}}>
         <div style={{fontSize:"0.68rem",fontWeight:"800",color:TD,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:"4px"}}>Subject</div>
         <div style={{fontSize:"0.82rem",color:TM,fontFamily:"monospace",marginBottom:"12px"}}>Cadence · Tue 3/18</div>
@@ -3073,6 +3125,22 @@ export function SettingsPage({user, allUsers, admins, teams, industryConfigs, in
       </div>
 
 
+      {/* Visibility */}
+      <div style={{borderTop:"1px solid var(--border-1)",paddingTop:"20px"}}>
+       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"16px"}}>
+        <div>
+         <div style={{fontSize:"0.88rem",fontWeight:"700",color:"var(--text-primary)",fontFamily:F,marginBottom:"2px"}}>Show Pacer button</div>
+         <div style={{fontSize:"0.75rem",color:TM,lineHeight:1.45}}>Hide the floating Pacer button if you prefer less clutter.</div>
+        </div>
+        <button
+         onClick={()=>{ onSavePacerSettings({hidden:!(pacerSettings?.hidden)}); flashSaved("Saved"); }}
+         style={{flexShrink:0,width:"44px",height:"26px",borderRadius:"13px",border:"none",cursor:"pointer",position:"relative",transition:"background 0.2s",background:pacerSettings?.hidden?"var(--bg-3)":"var(--accent)",WebkitTapHighlightColor:"transparent"}}
+        >
+         <div style={{position:"absolute",top:"3px",left:pacerSettings?.hidden?"3px":"21px",width:"20px",height:"20px",borderRadius:"50%",background:"#fff",transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
+        </button>
+       </div>
+      </div>
+
       {savedMsg && <div style={{color:"var(--accent)",fontSize:"0.82rem",fontWeight:"700",fontFamily:F}}>✓ {savedMsg}</div>}
      </div>
     )}
@@ -3148,7 +3216,7 @@ export function SettingsPage({user, allUsers, admins, teams, industryConfigs, in
     })()}
 
     {/* ──────────────── INTEGRATIONS ──────────────── */}
-    {tab==="report"&&<DailyReportTab user={user} />}
+    {tab==="report"&&<DailyReportTab user={user} industryConfig={industryConfig} />}
 
 
     {/* ──────────────── SHARE PROFILE ──────────────── */}
