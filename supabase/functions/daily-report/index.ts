@@ -48,24 +48,11 @@ function computeStreak(
   return streak;
 }
 
-async function sendEmail(
-  to: string,
-  subject: string,
-  text: string,
-  resendKey: string
-): Promise<boolean> {
+async function sendEmail(to: string, subject: string, text: string, resendKey: string): Promise<boolean> {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: {
-      "Authorization": `Bearer ${resendKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: "Cadence <report@getcadence.net>",
-      to,
-      subject,
-      text,
-    }),
+    headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from: "Cadence <report@getcadence.net>", to, subject, text }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -83,27 +70,19 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const resendKey   = Deno.env.get("RESEND_API_KEY")!;
-
     if (!resendKey) return json({ error: "RESEND_API_KEY not set" }, 500);
 
     const sb    = createClient(supabaseUrl, serviceKey);
     const today = todayET();
     const label = dayLabel();
 
-    // Find all entries with report recipients configured
     const { data: recipientRows, error: recipientErr } = await sb
       .from("kv_store")
       .select("key, value")
       .like("key", "%::at-report-recipients");
 
-    if (recipientErr) {
-      console.error("Failed to load recipients:", recipientErr);
-      return json({ error: recipientErr.message }, 500);
-    }
-
-    if (!recipientRows?.length) {
-      return json({ ok: true, message: "No report recipients configured" });
-    }
+    if (recipientErr) return json({ error: recipientErr.message }, 500);
+    if (!recipientRows?.length) return json({ ok: true, message: "No report recipients configured" });
 
     const results: string[] = [];
 
@@ -113,108 +92,80 @@ Deno.serve(async (req) => {
         const recipients: string[] = Array.isArray(row.value) ? row.value : [];
         if (!recipients.length) continue;
 
-        console.log(`Processing: ${orgId}, recipients: ${recipients.join(", ")}`);
+        console.log(`Processing: ${orgId}`);
 
-        // Extract the userId from the key prefix — it's the last segment after "solo-user-" or "org-"
-        // For solo-user-{userId}, userId IS the user we need data for
-        // But the data keys use a DIFFERENT space prefix — find it by searching for keys containing this userId
-        const soloMatch = orgId.match(/^solo-user-(.+)$/);
-        const userId = soloMatch ? soloMatch[1] : null;
-
-        if (!userId) {
-          console.log(`Could not extract userId from ${orgId}, skipping`);
-          continue;
-        }
-
-        // Find the actual space prefix that contains this user's data
-        // e.g. solo-user-1772508916078::at-data-user-1771872117285
-        const { data: dataKeyRows } = await sb
+        // Load users from at-users — works for both org- and solo- prefixes
+        const { data: usersRow } = await sb
           .from("kv_store")
-          .select("key")
-          .like("key", `%::at-data-user-${userId}`)
-          .order("key", { ascending: false })
-          .limit(5);
+          .select("value")
+          .eq("key", `${orgId}::at-users`)
+          .maybeSingle();
 
-        console.log(`Data keys for user ${userId}:`, dataKeyRows?.map(r => r.key));
-
-        // Pick the most recent solo- prefixed space, or fall back to first result
-        const dataKey = dataKeyRows?.find(r => r.key.startsWith("solo-"))?.key
-          || dataKeyRows?.[0]?.key;
-
-        if (!dataKey) {
-          console.log(`No data key found for user ${userId}, skipping`);
-          continue;
-        }
-
-        // Extract the actual space prefix from the data key
-        const spacePrefix = dataKey.replace(`::at-data-user-${userId}`, "");
-        console.log(`Using space prefix: ${spacePrefix} for user ${userId}`);
-
-        // Load data and goals using the correct space prefix
-        const [dataRow, goalsRow, usersRow] = await Promise.all([
-          sb.from("kv_store").select("value").eq("key", `${spacePrefix}::at-data-user-${userId}`).maybeSingle(),
-          sb.from("kv_store").select("value").eq("key", `${spacePrefix}::at-goals-user-${userId}`).maybeSingle(),
-          sb.from("kv_store").select("value").eq("key", `${spacePrefix}::at-users`).maybeSingle(),
-        ]);
-
-        const allData: Record<string, Record<string, number>> = dataRow?.value || {};
-        const goals:   Record<string, number>                 = goalsRow?.value || {};
-        const todayData: Record<string, number>               = allData[today] || {};
-
-        // Get user name from at-users if available
         const users: Array<{ id: string; name: string }> = usersRow?.value || [];
-        const userRecord = users.find(u => u.id === userId);
-        const userName = userRecord?.name || "You";
-        const firstName = userName.split(" ")[0];
+        console.log(`Users found: ${users.length}`);
 
-        console.log(`User ${firstName}: todayData=${JSON.stringify(todayData)}, goals=${JSON.stringify(goals)}`);
-
-        const dialKeys = ["dials","calls","outbound","outreach","touches"];
-        const dialKey  = dialKeys.find(k => goals[k] > 0) || Object.keys(goals).find(k => goals[k] > 0);
-
-        if (!dialKey) {
-          console.log(`No dial key found for ${firstName}, skipping`);
+        if (!users.length) {
+          console.log(`No users for ${orgId}, skipping`);
           continue;
         }
 
-        const logged = todayData[dialKey] || 0;
-        const goal   = goals[dialKey]     || 0;
-        const pct    = goal > 0 ? Math.round((logged / goal) * 100) : 0;
-        const gap    = Math.max(0, goal - logged);
+        const userLines: string[] = [];
+        let maxGap = 0;
+        let allHit = true;
 
-        const streak     = computeStreak(allData, goals);
-        const streakPart = streak > 0 ? ` 🔥${streak}d` : "";
+        for (const user of users) {
+          const [dataRow, goalsRow] = await Promise.all([
+            sb.from("kv_store").select("value").eq("key", `${orgId}::at-data-${user.id}`).maybeSingle(),
+            sb.from("kv_store").select("value").eq("key", `${orgId}::at-goals-${user.id}`).maybeSingle(),
+          ]);
 
-        const connectKeys = ["connects","connect","conversations","interested"];
-        const connectKey  = connectKeys.find(k => goals[k] > 0 || todayData[k] > 0);
-        const connects    = connectKey ? (todayData[connectKey] || 0) : null;
-        const connectPart = connects !== null ? ` · ${connects} connects` : "";
+          const allData: Record<string, Record<string, number>> = dataRow?.value || {};
+          const goals:   Record<string, number>                 = goalsRow?.value || {};
+          const todayData: Record<string, number>               = allData[today] || {};
 
-        const goalPart = goal > 0 ? `/${goal}` : "";
-        const doneMark = pct >= 100 ? " ✓" : "";
+          console.log(`${user.name}: todayData=${JSON.stringify(todayData)}, goals=${JSON.stringify(goals)}`);
 
-        const userLine = `${firstName}: ${logged}${goalPart} ${dialKey}${connectPart}${streakPart}${doneMark}`;
-        const footer   = pct >= 100
-          ? "Goals hit. Good work today."
-          : gap > 0
-            ? `${gap} ${dialKey} left in the tank. Finish strong.`
-            : "Keep going.";
+          const dialKeys = ["dials","calls","outbound","outreach","touches"];
+          const dialKey  = dialKeys.find(k => goals[k] > 0) || Object.keys(goals).find(k => goals[k] > 0);
+          if (!dialKey) { console.log(`No dial key for ${user.name}`); continue; }
+
+          const logged = todayData[dialKey] || 0;
+          const goal   = goals[dialKey]     || 0;
+          const pct    = goal > 0 ? Math.round((logged / goal) * 100) : 0;
+          const gap    = Math.max(0, goal - logged);
+          if (gap > maxGap) maxGap = gap;
+          if (pct < 100) allHit = false;
+
+          const streak      = computeStreak(allData, goals);
+          const streakPart  = streak > 0 ? ` 🔥${streak}d` : "";
+          const connectKeys = ["connects","connect","conversations","interested"];
+          const connectKey  = connectKeys.find(k => goals[k] > 0 || todayData[k] > 0);
+          const connects    = connectKey ? (todayData[connectKey] || 0) : null;
+          const connectPart = connects !== null ? ` · ${connects} connects` : "";
+          const firstName   = user.name?.split(" ")[0] || "You";
+          const goalPart    = goal > 0 ? `/${goal}` : "";
+          const doneMark    = pct >= 100 ? " ✓" : "";
+
+          userLines.push(`${firstName}: ${logged}${goalPart} ${dialKey}${connectPart}${streakPart}${doneMark}`);
+        }
+
+        if (!userLines.length) { console.log(`No lines for ${orgId}`); continue; }
 
         const subject = `Cadence · ${label}`;
-        const body    = `${userLine}\n\n${footer}`;
+        const footer  = allHit ? "Goals hit. Good work today." : `${maxGap} left in the tank. Finish strong.`;
+        const body    = [...userLines, "", footer].join("\n");
 
-        console.log(`Sending:\nSubject: ${subject}\n${body}`);
+        console.log(`Sending: ${subject}\n${body}`);
 
         let sent = 0;
         for (const recipient of recipients) {
           const ok = await sendEmail(recipient, subject, body, resendKey);
           if (ok) sent++;
         }
-
         results.push(`${orgId}: ${sent}/${recipients.length} sent`);
 
       } catch (err) {
-        console.error(`[daily-report] org error:`, err);
+        console.error(`org error:`, err);
         results.push(`Error: ${err.message}`);
       }
     }
@@ -222,7 +173,7 @@ Deno.serve(async (req) => {
     return json({ ok: true, today, results });
 
   } catch (err) {
-    console.error("[daily-report] fatal:", err);
+    console.error("fatal:", err);
     return json({ error: err.message }, 500);
   }
 });
