@@ -92,74 +92,51 @@ Deno.serve(async (req) => {
         const recipients: string[] = Array.isArray(row.value) ? row.value : [];
         if (!recipients.length) continue;
 
-        console.log(`Processing: ${orgId}`);
-
-        // Load users from at-users — works for both org- and solo- prefixes
         const { data: usersRow } = await sb
           .from("kv_store")
           .select("value")
           .eq("key", `${orgId}::at-users`)
           .maybeSingle();
 
-        const users: Array<{ id: string; name: string }> = usersRow?.value || [];
-        console.log(`Users found: ${users.length}`);
-
-        if (!users.length) {
-          console.log(`No users for ${orgId}, skipping`);
-          continue;
-        }
+        const users: Array<{ id: string; name: string }> = (usersRow as any)?.value || [];
+        if (!users.length) continue;
 
         const userLines: string[] = [];
-        let maxGap = 0;
-        let allHit = true;
 
         for (const user of users) {
-          const dataKey  = `${orgId}::at-data-${user.id}`;
-          const goalsKey = `${orgId}::at-goals-${user.id}`;
-          console.log(`Querying goals: ${goalsKey}`);
+          const { data: dataRow }  = await sb.from("kv_store").select("value").eq("key", `${orgId}::at-data-${user.id}`).maybeSingle();
+          const { data: goalsRow } = await sb.from("kv_store").select("value").eq("key", `${orgId}::at-goals-${user.id}`).maybeSingle();
 
-          const { data: dataRow }  = await sb.from("kv_store").select("value").eq("key", dataKey).maybeSingle();
-          const { data: goalsRow } = await sb.from("kv_store").select("value").eq("key", goalsKey).maybeSingle();
+          const allData:   Record<string, Record<string, number>> = (dataRow as any)?.value  || {};
+          const goals:     Record<string, number>                 = (goalsRow as any)?.value || {};
+          const todayData: Record<string, number>                 = allData[today] || {};
 
-          console.log(`goalsRow raw: ${JSON.stringify(goalsRow)}`);
+          // All metrics with a goal > 0, in a sensible order
+          const skipKeys = ["_notes", "_logTs", "disqualified"];
+          const metricKeys = Object.keys(goals).filter(k => goals[k] > 0 && !skipKeys.includes(k));
+          if (!metricKeys.length) continue;
 
-          const allData: Record<string, Record<string, number>> = (dataRow as any)?.value || {};
-          const goals:   Record<string, number>                 = (goalsRow as any)?.value || {};
-          const todayData: Record<string, number>               = allData[today] || {};
+          const streak     = computeStreak(allData, goals);
+          const streakPart = streak > 0 ? ` 🔥${streak}d` : "";
+          const firstName  = user.name?.split(" ")[0] || "You";
 
-          console.log(`${user.name}: todayData=${JSON.stringify(todayData)}, goals=${JSON.stringify(goals)}`);
+          // Build metric parts: "34/50 outbound · 4/8 conversations · 1/2 loads"
+          const metricParts = metricKeys.map(k => {
+            const logged = todayData[k] || 0;
+            const goal   = goals[k];
+            const done   = logged >= goal ? " ✓" : "";
+            return `${logged}/${goal} ${k}${done}`;
+          });
 
-          const dialKeys = ["dials","calls","outbound","outreach","touches"];
-          const dialKey  = dialKeys.find(k => goals[k] > 0) || Object.keys(goals).find(k => goals[k] > 0);
-          if (!dialKey) { console.log(`No dial key for ${user.name}`); continue; }
-
-          const logged = todayData[dialKey] || 0;
-          const goal   = goals[dialKey]     || 0;
-          const pct    = goal > 0 ? Math.round((logged / goal) * 100) : 0;
-          const gap    = Math.max(0, goal - logged);
-          if (gap > maxGap) maxGap = gap;
-          if (pct < 100) allHit = false;
-
-          const streak      = computeStreak(allData, goals);
-          const streakPart  = streak > 0 ? ` 🔥${streak}d` : "";
-          const connectKeys = ["connects","connect","conversations","interested"];
-          const connectKey  = connectKeys.find(k => goals[k] > 0 || todayData[k] > 0);
-          const connects    = connectKey ? (todayData[connectKey] || 0) : null;
-          const connectPart = connects !== null ? ` · ${connects} connects` : "";
-          const firstName   = user.name?.split(" ")[0] || "You";
-          const goalPart    = goal > 0 ? `/${goal}` : "";
-          const doneMark    = pct >= 100 ? " ✓" : "";
-
-          userLines.push(`${firstName}: ${logged}${goalPart} ${dialKey}${connectPart}${streakPart}${doneMark}`);
+          userLines.push(`${firstName}: ${metricParts.join(" · ")}`);
         }
 
-        if (!userLines.length) { console.log(`No lines for ${orgId}`); continue; }
+        if (!userLines.length) continue;
 
         const subject = `Cadence · ${label}`;
-        const footer  = allHit ? "Goals hit. Good work today." : `${maxGap} left in the tank. Finish strong.`;
-        const body    = [...userLines, "", footer].join("\n");
+        const body    = userLines.join("\n");
 
-        console.log(`Sending: ${subject}\n${body}`);
+        console.log(`Sending:\nSubject: ${subject}\n${body}`);
 
         let sent = 0;
         for (const recipient of recipients) {
