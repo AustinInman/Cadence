@@ -3137,7 +3137,7 @@ function ProfileSettingsModal({user, allUsers, admins, teams, industryConfigs, i
         {testResult === "error" && <div style={{fontSize:"0.8rem",color:"#F87171",fontWeight:"600"}}>Failed — check that RESEND_API_KEY is set and the from address is verified.</div>}
        </div>
       );
-
+     })()}
 
      {tab==="share"&&user&&(()=>{
       const _sd = myData||{};
