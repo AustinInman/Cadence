@@ -6425,7 +6425,6 @@ function MobileBottomNav({ view, navigateTo, orgId, communities, messaging, noti
  // Main 4 tabs
  const mainTabs = [
   { id: "home",      label: "Home",      Icon: IconHome,      active: isHome },
-  { id: "workspace", label: "Workspace", Icon: IconWorkspace, active: isWorkspace },
   { id: "crews",     label: "Crews",     Icon: IconCrew,      active: isCrew },
   { id: "more",  label: "More",  Icon: IconMore,  active: isMore, isMore: true },
  ];
@@ -6865,7 +6864,6 @@ export default function App({ authUser }) {
  const [paywallDefaultTier,setPaywallTier]=useState("pro");
  const [isPro,setIsPro]=useState(false);
  const [isElite,setIsElite]=useState(false);
- const [reportCrewId,setReportCrewId]=useState(null);
  const [usageStatus,setUsageStatus]=useState(null); // full usage object for credit warnings
  const [isFreePlan,setIsFreePlan]=useState(true); // assume free until checked
 
@@ -9317,22 +9315,6 @@ ${text}
     />
    )}
   </div>
-  {showCrewReport && (()=>{
-   const reportCom = (communities||[]).find(c=>c.id===reportCrewId) || communities?.[0];
-   const reportMembers = reportCom ? (communityMembers[reportCom.id]||[]).filter(m=>m.userId||m.id) : [];
-   if(!reportCom||!reportMembers.length) return null;
-   return <CrewReport
-    currentUser={currentUser}
-    crew={reportCom}
-    members={reportMembers}
-    allUsersData={allUsersData}
-    allUserGoals={allUserGoals}
-    industryConfigs={industryConfigs}
-    isPro={isPro}
-    onShowPaywall={() => setShowPaywall(true)}
-    onClose={() => setShowCrewReport(false)}
-   />;
-  })()}
   </ErrorBoundary>
  );
 }
@@ -10253,7 +10235,7 @@ function PacerCompanion({ currentUser, myData, industryConfig, myGoals, streak, 
         const engLevel = pacerSettings?.engagement || "high";
     if (engLevel === "low") return;
 
-    if (isWorkspace) {
+    if (view === "tracker") {
       // Entered workspace
       if (!workspaceEnteredAt.current) {
         workspaceEnteredAt.current = Date.now();
@@ -14454,7 +14436,7 @@ function CommunitiesView({ currentUser, users, allUsersData, allUserGoals, indus
                 <>
                   <button onClick={() => setShowShareCard(v => !v)}
                     style={{ background: "none", border: "1px solid var(--border-1)", color: "var(--text-muted)", padding: "6px 10px", borderRadius: "8px", fontSize: "0.75rem", cursor: "pointer", fontFamily: F }}>🔗 Share</button>
-                  <button onClick={() => { setReportCrewId(activeCom?.id || null); null /* removed */; }}
+                  <button onClick={() => { null /* removed */; }}
                     style={{ background: "none", border: "1px solid var(--border-1)", color: "var(--text-muted)", padding: "6px 10px", borderRadius: "8px", fontSize: "0.75rem", cursor: "pointer", fontFamily: F }}>📊 Report</button>
                 </>
               )}
