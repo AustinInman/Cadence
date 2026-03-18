@@ -1962,12 +1962,6 @@ function DailyReportTab({ user }) {
         <div style={{fontSize:"0.68rem",fontWeight:"800",color:TD,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:"4px"}}>Body</div>
         <pre style={{fontSize:"0.82rem",color:TM,fontFamily:"monospace",lineHeight:1.6,margin:0,whiteSpace:"pre-wrap"}}>{"Austin: 34/50 dials · 4 connects 🔥3d\nJake: 28/50 dials · 2 connects\n\n16 dials left in the tank. Finish strong."}</pre>
       </div>
-        <div style={{fontSize:"0.75rem",color:TM,lineHeight:1.7}}>
-          Deploy <code style={{color:TA}}>supabase functions deploy daily-report</code><br/>
-          Add cron in Supabase → Edge Functions → Schedules:<br/>
-          <code style={{color:"var(--text-primary)",fontSize:"0.72rem"}}>0 21 * * 1-5</code> → 5pm ET Mon–Fri
-        </div>
-      </div>
       <button onClick={sendTest} disabled={testSending}
         style={{background:"rgba(29,201,232,0.08)",border:"1px solid rgba(29,201,232,0.25)",borderRadius:"12px",padding:"13px",fontWeight:"700",fontSize:"0.88rem",color:TA,cursor:"pointer",fontFamily:F,opacity:testSending?0.6:1}}>
         {testSending ? "Sending test…" : "Send test report now →"}
@@ -3085,53 +3079,6 @@ export function SettingsPage({user, allUsers, admins, teams, industryConfigs, in
     )}
 
     {/* ──────────────── SUBSCRIPTION ──────────────── */}
-    {tab==="subscription"&&(
-     <div style={{maxWidth:"480px",display:"flex",flexDirection:"column",gap:"20px"}}>
-      <div>
-       <div style={{fontSize:"1.05rem",fontWeight:"700",color:"var(--text-primary)",fontFamily:F,marginBottom:"4px"}}>💳 Subscription</div>
-       <div style={{fontSize:"0.85rem",color:TM,lineHeight:1.6}}>Manage your Cadence plan.</div>
-      </div>
-
-      {isPro ? (
-       <div style={{background:"linear-gradient(135deg,rgba(29,201,232,0.08) 0%,rgba(123,111,216,0.08) 100%)",border:"1px solid rgba(29,201,232,0.3)",borderRadius:"16px",padding:"20px 22px"}}>
-        <div style={{display:"flex",alignItems:"center",gap:"12px",marginBottom:"14px"}}>
-         <div style={{fontSize:"1.8rem"}}>⚡</div>
-         <div>
-          <div style={{fontSize:"1rem",fontWeight:"800",color:"var(--text-primary)",fontFamily:F}}>Cadence Pro</div>
-          <div style={{fontSize:"0.75rem",color:TA,fontWeight:"700",fontFamily:F}}>Active</div>
-         </div>
-        </div>
-        <div style={{fontSize:"0.82rem",color:TM,lineHeight:1.6,marginBottom:"16px"}}>You have access to all Pro features: unlimited Pacer AI, session debriefs, AI coaching, and more.</div>
-        <div style={{borderTop:"1px solid rgba(29,201,232,0.15)",paddingTop:"14px"}}>
-         <div style={{fontSize:"0.72rem",color:TD,marginBottom:"8px",fontFamily:F}}>Need to cancel or update billing?</div>
-         <a href={"mailto:support@getcadence.net?subject=Subscription Management"} style={{display:"inline-block",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:TM,padding:"8px 16px",borderRadius:"8px",fontSize:"0.78rem",fontWeight:"600",fontFamily:F,textDecoration:"none"}}>Contact support →</a>
-        </div>
-       </div>
-      ) : (
-       <div style={{display:"flex",flexDirection:"column",gap:"12px"}}>
-        <div style={{background:"var(--bg-1)",border:"1px solid var(--border-1)",borderRadius:"14px",padding:"18px 20px"}}>
-         <div style={{fontSize:"0.8rem",fontWeight:"700",color:TD,textTransform:"uppercase",letterSpacing:"0.1em",fontFamily:F,marginBottom:"8px"}}>Current plan</div>
-         <div style={{fontSize:"1rem",fontWeight:"800",color:"var(--text-primary)",fontFamily:F,marginBottom:"4px"}}>Free</div>
-         <div style={{fontSize:"0.78rem",color:TM,fontFamily:F}}>10 Pacer AI credits/month · Core CRM · Basic analytics</div>
-        </div>
-        <div style={{background:"linear-gradient(135deg,rgba(29,201,232,0.08) 0%,rgba(123,111,216,0.08) 100%)",border:"1px solid rgba(29,201,232,0.25)",borderRadius:"14px",padding:"18px 20px"}}>
-         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"10px"}}>
-          <div style={{fontSize:"1rem",fontWeight:"800",color:"var(--text-primary)",fontFamily:F}}>⚡ Pro</div>
-          <div style={{fontSize:"1rem",fontWeight:"900",color:TA,fontFamily:F}}>$49<span style={{fontSize:"0.7rem",fontWeight:"500",color:TM}}>/mo</span></div>
-         </div>
-         <div style={{display:"flex",flexDirection:"column",gap:"5px",marginBottom:"14px"}}>
-          {["Unlimited Pacer AI credits","AI debrief after every session","Proactive daily coaching","Smart analytics & trends","Priority support"].map(f=>(
-           <div key={f} style={{display:"flex",alignItems:"center",gap:"8px",fontSize:"0.8rem",color:TM,fontFamily:F}}>
-            <span style={{color:TA,flexShrink:0}}>✓</span>{f}
-           </div>
-          ))}
-         </div>
-         <button onClick={()=>onShowPaywall&&onShowPaywall()} style={{width:"100%",background:"var(--accent)",color:"#000",border:"none",padding:"12px",borderRadius:"10px",fontSize:"0.88rem",fontWeight:"800",cursor:"pointer",fontFamily:F}}>Upgrade to Pro →</button>
-        </div>
-       </div>
-      )}
-     </div>
-    )}
 
     {/* ──────────────── FEEDBACK ──────────────── */}
     {/* ──────────────── MILESTONES ──────────────── */}
