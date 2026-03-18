@@ -7013,8 +7013,6 @@ export default function App({ authUser }) {
  const [paywallDefaultTier,setPaywallTier]=useState("pro");
  const [isPro,setIsPro]=useState(false);
  const [isElite,setIsElite]=useState(false);
- const [showIndividualReport,setShowIndividualReport]=useState(false);
- const [showCrewReport,setShowCrewReport]=useState(false);
  const [reportCrewId,setReportCrewId]=useState(null);
  const [usageStatus,setUsageStatus]=useState(null); // full usage object for credit warnings
  const [isFreePlan,setIsFreePlan]=useState(true); // assume free until checked
@@ -9345,24 +9343,6 @@ ${text}
     </>}
 
     {/* FOCUS SESSION — separate view */}
-    {view==="workspace"&&currentUser&&(
-     <FocusSession
-      currentUser={currentUser}
-      authUser={authUser}
-      plan={usageStatus?.plan||"free"}
-      myGoals={myGoals}
-      indConfig={indConfig}
-      onShowPaywall={()=>{setPaywallTier("pro");setShowPaywall(true);}}
-      onShowElitePaywall={()=>{setPaywallTier("elite");setShowPaywall(true);}}
-      onNavigateTo={navigateTo}
-      trackerCounts={counts}
-      trackerSetCounts={setCounts}
-      trackerActiveMetrics={activeMetrics}
-      trackerNotes={notes}
-      trackerSetNotes={setNotes}
-      trackerSaveDay={saveDay}
-     />
-    )}
 
     {/* HISTORY */}
     {view==="history"&&<>
@@ -9391,17 +9371,7 @@ ${text}
      />
      <div style={s.histTopRow}>
       {/* ── Analytics Report CTA ── */}
-      <button onClick={()=>setShowIndividualReport(true)}
-       style={{ display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",boxSizing:"border-box",
-        background:"linear-gradient(135deg,rgba(29,201,232,0.08) 0%,rgba(168,85,247,0.05) 100%)",
-        border:"1px solid rgba(29,201,232,0.2)",borderRadius:"14px",padding:"14px 16px",
-        cursor:"pointer",WebkitTapHighlightColor:"transparent",marginBottom:"4px",textAlign:"left" }}>
-       <div>
-        <div style={{ fontSize:"0.88rem",fontWeight:800,color:"var(--text-primary)",fontFamily:F,marginBottom:"2px" }}>📊 Performance Report</div>
-        <div style={{ fontSize:"0.72rem",color:"var(--text-muted)",fontFamily:F }}>Goal %, streaks, best days, Pacer's read</div>
-       </div>
-       <span style={{ fontSize:"0.85rem",color:"var(--accent)",flexShrink:0,marginLeft:"10px" }}>→</span>
-      </button>
+      
 
       <div style={s.sectionLabel}>Your History</div>
       <div style={s.actionBtns}>
@@ -9580,40 +9550,6 @@ ${text}
     />
    )}
   </div>
-  <PacerPaywall open={showPaywall} onClose={() => setShowPaywall(false)} onUpgradeSuccess={() => { refreshUsage(); }} />
-  {showIndividualReport && currentUser && (
-   <IndividualReport
-    currentUser={currentUser}
-    myData={(() => {
-      if (isPro || !myData) return myData;
-      const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 3);
-      const cutoffStr = cutoff.toISOString().slice(0, 10);
-      return Object.fromEntries(Object.entries(myData).filter(([d]) => d >= cutoffStr));
-    })()}
-    industryConfig={indConfig}
-    myGoals={myGoals}
-    streak={computeStreak(myData, getProtectedDates(myFreezes))}
-    isPro={isPro}
-    onShowPaywall={() => setShowPaywall(true)}
-    onClose={() => setShowIndividualReport(false)}
-   />
-  )}
-  {showCrewReport && (()=>{
-   const reportCom = (communities||[]).find(c=>c.id===reportCrewId) || communities?.[0];
-   const reportMembers = reportCom ? (communityMembers[reportCom.id]||[]).filter(m=>m.userId||m.id) : [];
-   if(!reportCom||!reportMembers.length) return null;
-   return <CrewReport
-    currentUser={currentUser}
-    crew={reportCom}
-    members={reportMembers}
-    allUsersData={allUsersData}
-    allUserGoals={allUserGoals}
-    industryConfigs={industryConfigs}
-    isPro={isPro}
-    onShowPaywall={() => setShowPaywall(true)}
-    onClose={() => setShowCrewReport(false)}
-   />;
-  })()}
   </ErrorBoundary>
  );
 }
@@ -12316,7 +12252,7 @@ ${text}` }], max_tokens: 80, call_type: "pacer" })
           )}
 
           {/* Usage bar — free users near/at limit */}
-          <PacerUsageBar onUpgradeClick={() => onShowPaywall?.()} />
+          
           {/* Input — padding accounts for safe area on mobile */}
           <div style={{
             padding: isMobileDevice
@@ -14754,8 +14690,7 @@ function CommunitiesView({ currentUser, users, allUsersData, allUserGoals, indus
                 <>
                   <button onClick={() => setShowShareCard(v => !v)}
                     style={{ background: "none", border: "1px solid var(--border-1)", color: "var(--text-muted)", padding: "6px 10px", borderRadius: "8px", fontSize: "0.75rem", cursor: "pointer", fontFamily: F }}>🔗 Share</button>
-                  <button onClick={() => { setReportCrewId(activeCom?.id || null); setShowCrewReport(true); }}
-                    style={{ background: "none", border: "1px solid var(--border-1)", color: "var(--text-muted)", padding: "6px 10px", borderRadius: "8px", fontSize: "0.75rem", cursor: "pointer", fontFamily: F }}>📊 Report</button>
+                  
                 </>
               )}
               <button onClick={() => switchTab("feed")}
