@@ -114,13 +114,17 @@ Deno.serve(async (req) => {
         let allHit = true;
 
         for (const user of users) {
-          const [dataRow, goalsRow] = await Promise.all([
-            sb.from("kv_store").select("value").eq("key", `${orgId}::at-data-${user.id}`).maybeSingle(),
-            sb.from("kv_store").select("value").eq("key", `${orgId}::at-goals-${user.id}`).maybeSingle(),
-          ]);
+          const dataKey  = `${orgId}::at-data-${user.id}`;
+          const goalsKey = `${orgId}::at-goals-${user.id}`;
+          console.log(`Querying goals: ${goalsKey}`);
 
-          const allData: Record<string, Record<string, number>> = dataRow?.value || {};
-          const goals:   Record<string, number>                 = goalsRow?.value || {};
+          const { data: dataRow }  = await sb.from("kv_store").select("value").eq("key", dataKey).maybeSingle();
+          const { data: goalsRow } = await sb.from("kv_store").select("value").eq("key", goalsKey).maybeSingle();
+
+          console.log(`goalsRow raw: ${JSON.stringify(goalsRow)}`);
+
+          const allData: Record<string, Record<string, number>> = (dataRow as any)?.value || {};
+          const goals:   Record<string, number>                 = (goalsRow as any)?.value || {};
           const todayData: Record<string, number>               = allData[today] || {};
 
           console.log(`${user.name}: todayData=${JSON.stringify(todayData)}, goals=${JSON.stringify(goals)}`);
