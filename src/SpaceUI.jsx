@@ -1914,10 +1914,9 @@ function DailyReportTab({ user }) {
   async function sendTest() {
     setTestSending(true); setTestResult(null);
     try {
-      const { data: { session } } = await window._sb.auth.getSession();
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/daily-report`, {
         method: "POST",
-        headers: { "Authorization": `Bearer ${session?.access_token}`, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY },
         body: JSON.stringify({ test: true }),
       });
       setTestResult(res.ok ? "success" : "error");
