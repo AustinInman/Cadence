@@ -3659,8 +3659,10 @@ function JournalViewInner({ currentUser, myData, industryConfig, myGoals, active
     .map(([,v]) => v).join(" ").slice(0, 400);
    return `Entry ${i+1} (ts:${e.ts}): ${text}`;
   }).join("\n\n");
+  if (!entryDescriptions.trim()) { setPacerCommentsLoading(false); return; }
+  const prompt = `You are Pacer, a direct AI companion in Cadence for a sales professional.\n\nRead these journal entries. React to the notable ones — first customers, closed deals, personal bests, milestones. Be specific about what happened. Sound like a real colleague, not a bot.\n\nReturn JSON only: {"comments": [{"ts": number, "text": "your reaction"}]}\nRules: Max 2 sentences. Be genuinely energized for real wins. Skip generic updates. Only react to entries that deserve it.\n\nEntries:\n${entryDescriptions}`;
   try {
-   await callAI({ model: "claude-haiku-4-5-20251001", messages: [{ role: "user", content: prompt }], max_tokens: 100, call_type: "pacer" })
+   const data = await callAI({ model: "claude-haiku-4-5-20251001", messages: [{ role: "user", content: prompt }], max_tokens: 100, call_type: "pacer" })
    const raw = (data?.content || []).filter(b => b.type === "text").map(b => b.text).join("").trim();
    const clean = raw.replace(/^[`]{3}json?\s*/i, "").replace(/[`]{3}\s*$/i, "").trim();
    const parsed = JSON.parse(clean);
@@ -4559,7 +4561,7 @@ Rules: Questions should be specific to what they want to write about. 3 prompts 
    window.dispatchEvent(new CustomEvent("cadence:journal-saved", { detail: { text: journalText } }));
   }
   // Async: distill journal entries into Pacer memory (fire-and-forget)
-  updatePacerJournalMemory().catch(() => {});
+  window.dispatchEvent(new CustomEvent("cadence:update-pacer-memory"));
   // Unified journal storage — all entries go to the same store
   // weekKey included on entry for backward compatibility with old weekly reflections
   await saveJournalEntry(currentUser.id, { ...entry, weekKey: wk, movedNeedle: answers.needle || answers.what || answers.gap || "", intention: answers.next || answers.commit || answers.first || "" });
@@ -6962,6 +6964,9 @@ export default function App({ authUser, pendingInvite = null, isNewUser = false 
    if (eid && newAdmins) saveAdmins(eid, newAdmins).catch(()=>{});
   }
   window.addEventListener("cadence:update-admins", onUpdateAdmins);
+  // Pacer memory update — fired by JournalEntryModal after save
+  function onUpdatePacerMemory() { updatePacerJournalMemory().catch(()=>{}); }
+  window.addEventListener("cadence:update-pacer-memory", onUpdatePacerMemory);
   // Go to org admin tab from settings callout
   function onGoAdminTab() { navigateTo("crews"); }
   window.addEventListener("cadence:go-admin-tab", onGoAdminTab);
@@ -6971,6 +6976,7 @@ export default function App({ authUser, pendingInvite = null, isNewUser = false 
    window.removeEventListener("cadence-nav", onCadenceNavHome);
    window.removeEventListener("cadence:go-settings", onGoSettings);
    window.removeEventListener("cadence:update-admins", onUpdateAdmins);
+   window.removeEventListener("cadence:update-pacer-memory", onUpdatePacerMemory);
    window.removeEventListener("cadence:go-admin-tab", onGoAdminTab);
   };
  },[]);
@@ -7469,11 +7475,12 @@ export default function App({ authUser, pendingInvite = null, isNewUser = false 
   const loadedTeams=await loadTeams();
   setTeams(loadedTeams);
   setAllUsersData(allData);setAllUserGoals(allGoals);
-  // Try to find user by Supabase auth UID first (most secure), then fall back to localStorage
+  // Try to find user: 1) by authUid, 2) by savedUserId, 3) by email, 4) first admin, 5) first user
   const authMatchedUser = authUser?.id ? lu.find(u => u.authUid === authUser.id) : null;
-  const effectiveSavedUserId = authMatchedUser ? authMatchedUser.id : savedUserId;
+  const emailMatchedUser = !authMatchedUser && authUser?.email ? lu.find(u => u.email && u.email.toLowerCase() === authUser.email.toLowerCase()) : null;
+  const effectiveSavedUserId = authMatchedUser?.id || emailMatchedUser?.id || savedUserId;
   if(effectiveSavedUserId){
-   const found=lu.find(u=>u.id===effectiveSavedUserId);
+   const found=lu.find(u=>u.id===effectiveSavedUserId) || authMatchedUser || emailMatchedUser || null;
    if(found){
     await loginAs(found,allData,allGoals,configs);
     await loadUserCommunities(savedUserId);
@@ -7585,6 +7592,18 @@ export default function App({ authUser, pendingInvite = null, isNewUser = false 
     }
     return;
    }
+  }
+  // Hard fallback: if we have users in this space but nothing matched above, pick the best candidate
+  // rather than going through the registry search and potentially showing a modal
+  if (lu.length > 0 && !effectiveSavedUserId) {
+   const bestUser = lu.find(u => u.authUid === authUser?.id)
+     || lu.find(u => authUser?.email && u.email?.toLowerCase() === authUser.email.toLowerCase())
+     || lu.find(u => adm.includes(u.id))
+     || lu[0];
+   await loginAs(bestUser, allData, allGoals, configs);
+   setModal(null);
+   setLoading(false);
+   return;
   }
   // If authenticated via Supabase but no matching Cadence profile found in current namespace —
   // do a global registry search before creating anything new (prevents duplicates on new devices)
