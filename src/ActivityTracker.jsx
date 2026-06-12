@@ -1,4 +1,5 @@
 import { callAI } from './cadenceAI.js';
+import FocusSessionView from './FocusSession.jsx';
 import React,{useState,useEffect,useRef,useCallback,useMemo} from 'react';
 import {AKEY,AVATAR_COLOR_PRESETS,BB1,BB18,BB1A30,BB1A3A,BB2A10,BB2A28,BBA,BD1,BDIR,BG0,BG1,BG2,BG3,BP,BR,CADENCE_LOGO,DEFAULT_INDUSTRIES,F,METRIC_COLORS,MONTH_NAMES,SHORT_MONTHS,TA,TD,TM,TP,TS,TX,addCommunityMember,addJoinRequest,allDaysInMonth,computeGoalPct,computeStreak,consumeInvite,copyText,createCommunity,createInviteToken,createOrganization,dayName,formatDate,formatShort,genId,getDow,getInviteTokenFromURL,getInviteURL,getNs,getUserAvatarColor,initialsColor,injectThemeVars,isWeekend,lastWeekendSat,loadAdmins,loadCommunityMembers,loadGlobalSuperAdmin,loadIndustryConfig,loadInvite,loadMessages,loadOrgMeta,loadPendingRequests,loadPins,loadSpaceIndex,loadSpaceMeta,loadSuperAdmin,loadTeams,loadThreads,loadUserData,loadUserMemberships,loadUsers,migrateSoloToOrg,monthKey,ns,nsKey,loadUserRegistry,registerUserGlobally,removeCommunityMember,removeJoinRequest,s,saveAdmins,saveGlobalSuperAdmin,saveIndustryConfig,saveMessages,saveOrgMeta,savePins,saveSpaceMeta,saveSuperAdmin,saveTeams,saveThreads,saveUserData,saveUserMemberships,saveUsers,setNs,soloNs,storageDelete,storageGet,storageSet,todayStr,updateCommunityMemberIndustry,useFlash,weekKey,loadPersonalThreads,savePersonalThreads,loadPersonalMessages,savePersonalMessages,loadPersonalMuted,savePersonalMuted,loadSpaceAdmins,saveSpaceAdmins,writePresence,loadPresence,isOnline,getPresenceStatus,loadNotifications,saveNotifications,pushNotification,loadChallenges,saveChallenges,loadWeeklyRecap,saveWeeklyRecap,loadMvpVotes,saveMvpVotes,loadWeeklyReflection,saveWeeklyReflection,loadStreakFreezes,saveStreakFreezes,getProtectedDates,canLogPTO,canLogSick,loadAccountabilityPairs,saveAccountabilityPairs,saveJournalEntry,loadJournalEntries,loadJournalSettings,saveJournalSettings,loadUserTracks,saveUserTracks,loadActiveTrackId,saveActiveTrackId,trackDataKey,trackGoalKey,loadFeed,saveFeed,postFeedItem,updateFeedItem,deleteFeedItem,loadOrgRoles,saveOrgRoles,loadCommunityRoles,saveCommunityRoles,loadOrgTeams,saveOrgTeams,loadMemberAssignments,saveMemberAssignments,setMemberAssignment,canPerform,getTeamSubtree,defaultOrgRoles,defaultCommunityRoles,ROLE_PERMISSIONS,approveOrg,rejectOrg,loadPendingOrgs,loadDeniedRequests,saveDeniedRequest,clearDeniedRequest,haptic,loadAvatarPhoto,saveAvatarPhoto,registerServiceWorker,notifPermission,requestNotifPermission,fireNotif,notifStreakAtRisk,notifGoalsHit,notifNewDM,notifFeedReaction,notifWeeklyDigest,notifStreakMilestone,scheduleStreakCheck,loadFreezeBank,saveFreezeBank,maybeEarnFreeze,useStreakFreeze,loadPacerMemory,savePacerMemory,updatePacerMemoryFromJournal,detectLogTimePattern,sendWeeklyDigestEmail,loadUnlockedMilestones,saveUnlockedMilestones,getMilestoneDefinitions,computeMilestoneTotals,checkNewMilestones,loadCrewAnnouncement,saveCrewAnnouncement,loadCrewOfficialChallenge,saveCrewOfficialChallenge,loadCrewSlug,saveCrewSlug,resolveCrewSlug} from './shared.js';
 
@@ -6305,6 +6306,7 @@ function SideNav({ view, navigateTo, currentUser, orgId, communities, messaging,
  const navItems = [
   { id: "home", icon: "\u{1F3E0}", label: "Home", isGroup: true },
   { id: "tracker", icon: "📊", label: "Tracker" },
+  { id: "focus", icon: "🎯", label: "Focus" },
   { id: "crews", icon: "⚡", label: "Crews", badge: communityPendingCount > 0 ? String(communityPendingCount) : null, isComGroup: true },
   { id: "messages", icon: "\u{1F4AC}", label: "Messages", badge: totalUnread > 0 ? (totalUnread > 9 ? "9+" : String(totalUnread)) : null },
   { id: "settings", icon: "\u2699\uFE0F", label: "Settings" },
@@ -6410,7 +6412,7 @@ function MobileBottomNav({ view, navigateTo, orgId, communities, messaging, noti
  const totalUnread = messaging.threads.reduce((s,t) => s + (t.unreadCount||0), 0);
  const [moreOpen, setMoreOpen] = useState(false);
 
- const homeViews = ["home","history","journal"];
+ const homeViews = ["home","history","journal","focus"];
  const isHome = homeViews.includes(view);
   const isOrg  = view === "org";
  const isCrew = view === "crews";
@@ -6463,7 +6465,7 @@ function MobileBottomNav({ view, navigateTo, orgId, communities, messaging, noti
  ];
 
  // Sub-tab rows
- const homeSubTabs  = [["home","Dashboard"],["journal","Journal"],["history","Stats"]];
+ const homeSubTabs  = [["home","Dashboard"],["focus","Focus"],["journal","Journal"],["history","Stats"]];
  // orgSubTabs removed
  const crewSubTabs  = [["dashboard","Dashboard"],["feed","Pulse"],["members","Members"]];
 
@@ -8549,7 +8551,7 @@ export default function App({ authUser, pendingInvite = null, isNewUser = false 
     return next;
    });
    // Use ref to call showMicroToast (defined later in component, safe via ref)
-   showMicroToastRef.current?.(`✅ Session logged — ${d.dials||0} calls, ${d.activities||0} activities added to today`, 4000);
+   if(!d.silent) showMicroToastRef.current?.(`✅ Session logged — ${d.dials||0} calls, ${d.activities||0} activities added to today`, 4000);
   }
   window.addEventListener("cadence:focus-session-complete", handleFocusComplete);
   return () => window.removeEventListener("cadence:focus-session-complete", handleFocusComplete);
@@ -9308,6 +9310,9 @@ ${text}
     </>}
 
     {/* FOCUS SESSION — separate view */}
+    {view==="focus"&&(
+     <FocusSessionView currentUser={currentUser} onExit={()=>navigateTo("tracker")} />
+    )}
 
     {/* HISTORY */}
     {view==="history"&&<>
