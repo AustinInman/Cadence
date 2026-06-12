@@ -54,18 +54,29 @@ Respond with ONLY a JSON object — no markdown fences, no preamble — in exact
   "red_flags": "disqualify signals if any (private fleet, asset-based 3PL contract, too small, no freight) or null",
   "phone": "main line in (XXX) XXX-XXXX format if found on their site, or null",
   "confidence": "high|medium|low"
-}`;
+}
+
+Every field value must be plain text — never include citation tags, <cite> markup, HTML, or source references inside the JSON.`;
+
+const stripCite = (v) => (typeof v === "string" ? v.replace(/<\/?(?:antml:)?cite[^>]*>/g, "") : v);
+function cleanBrief(b) {
+  if (!b || typeof b !== "object") return b;
+  const o = {};
+  for (const k of Object.keys(b)) o[k] = Array.isArray(b[k]) ? b[k].map(stripCite) : stripCite(b[k]);
+  return o;
+}
 
 function parseEnrichmentJSON(resp) {
   try {
     const text = (resp?.content || [])
       .filter((b) => b.type === "text")
       .map((b) => b.text)
-      .join("\n");
+      .join("\n")
+      .replace(/<\/?(?:antml:)?cite[^>]*>/g, "");
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
     if (start === -1 || end === -1) return null;
-    return JSON.parse(text.slice(start, end + 1));
+    return cleanBrief(JSON.parse(text.slice(start, end + 1)));
   } catch {
     return null;
   }
@@ -192,6 +203,7 @@ export default function FocusSessionView({ currentUser, onExit }) {
   const [includeCallbacks, setIncludeCallbacks] = useState(true);
   const [includeLeftovers, setIncludeLeftovers] = useState(false);
   const [dialGoal, setDialGoal] = useState("");
+  const [sessionMins, setSessionMins] = useState("");
   const [starting, setStarting] = useState(false);
   const [setupErr, setSetupErr] = useState("");
 
@@ -203,12 +215,20 @@ export default function FocusSessionView({ currentUser, onExit }) {
   const [note, setNote] = useState("");
   const [picker, setPicker] = useState(null); // "callback" | "dq" | null
   const [ticking, setTicking] = useState(false);
-  const [startedAt, setStartedAt] = useState(null);
-  const [elapsed, setElapsed] = useState(0);
+  const [elapsed, setElapsed] = useState(0);        // seconds on the clock — paused time excluded
+  const [overlay, setOverlay] = useState(null);      // null | "paused" | "timeup"
+  const [overtime, setOvertime] = useState(false);
   const [aiDown, setAiDown] = useState(false);
+  const accumRef = useRef(0);            // ms accumulated while running
+  const runningSinceRef = useRef(null);  // timestamp of last resume, null while paused
 
   // Done state
   const [debrief, setDebrief] = useState("");
+
+  // Extend state (list finished but session not closed)
+  const [addText, setAddText] = useState("");
+  const [extendLeft, setExtendLeft] = useState([]);
+  const [adding, setAdding] = useState(false);
 
   const inFlight = useRef(new Set());
   const failed = useRef(new Set());
@@ -253,12 +273,41 @@ export default function FocusSessionView({ currentUser, onExit }) {
     })();
   }, []);
 
-  // Elapsed timer
+  // Pause-aware clock
+  const computeElapsedMs = () => accumRef.current + (runningSinceRef.current ? Date.now() - runningSinceRef.current : 0);
   useEffect(() => {
-    if (phase !== "live" || !startedAt) return;
-    const t = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    if (phase !== "live") return;
+    const t = setInterval(() => setElapsed(Math.floor(computeElapsedMs() / 1000)), 500);
     return () => clearInterval(t);
-  }, [phase, startedAt]);
+  }, [phase]);
+
+  function stopClock() {
+    if (runningSinceRef.current) {
+      accumRef.current += Date.now() - runningSinceRef.current;
+      runningSinceRef.current = null;
+    }
+    setElapsed(Math.floor(accumRef.current / 1000));
+  }
+  function pauseClock(kind = "paused") { stopClock(); setOverlay(kind); }
+  function resumeClock() { runningSinceRef.current = Date.now(); setOverlay(null); }
+
+  // Time-box countdown — trips once when it hits zero
+  const durSec = sessionMins ? parseInt(sessionMins, 10) * 60 : null;
+  const remaining = durSec != null ? durSec - elapsed : null;
+  useEffect(() => {
+    if (phase !== "live" || overlay || overtime || remaining == null || remaining > 0) return;
+    pauseClock("timeup");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remaining, phase, overlay, overtime]);
+
+  // Entering the extend screen: find companies not in this session that could be added
+  useEffect(() => {
+    if (phase !== "extend" || !authId) return;
+    sb().from("focus_companies").select("*").eq("user_id", authId).in("status", ["new", "attempted"]).then(({ data }) => {
+      const inList = new Set(listRef.current.map((c) => c.id));
+      setExtendLeft((data || []).filter((r) => !inList.has(r.id)));
+    });
+  }, [phase, authId]);
 
   // Enrichment queue — keep current + next 2 enriched, max 2 concurrent
   useEffect(() => {
@@ -289,44 +338,54 @@ export default function FocusSessionView({ currentUser, onExit }) {
   const [, setBumpN] = useState(0);
   const bump = () => setBumpN((n) => n + 1);
 
+  // Dedupe parsed companies against the DB: reuse live records, skip disqualified, insert the rest.
+  async function materializeCompanies(parsed) {
+    if (!parsed.length) return { queue: [], skippedDq: 0 };
+    const names = parsed.map((p) => p.name.toLowerCase());
+    const { data: existing } = await sb()
+      .from("focus_companies")
+      .select("id,name,status,website,enrichment,dials,notes,callback_at")
+      .eq("user_id", authId)
+      .filter("name", "in", `(${names.map((n) => `"${n.replace(/"/g, "")}"`).join(",")})`);
+    const byName = new Map((existing || []).map((r) => [r.name.toLowerCase(), r]));
+    const queue = [];
+    const toInsert = [];
+    let skippedDq = 0;
+    for (const p of parsed) {
+      const ex = byName.get(p.name.toLowerCase());
+      if (ex) {
+        if (ex.status === "disqualified") skippedDq++;
+        else queue.push(ex);
+        continue;
+      }
+      toInsert.push({ user_id: authId, name: p.name, website: p.website });
+    }
+    if (toInsert.length) {
+      const { data: inserted, error } = await sb().from("focus_companies").insert(toInsert).select("*");
+      if (error) throw error;
+      queue.push(...(inserted || []));
+    }
+    return { queue, skippedDq };
+  }
+
   // ── Start session ───────────────────────────────────────────────────────────
   async function startSession() {
     if (!authId) return;
     setStarting(true);
     setSetupErr("");
     try {
-      const parsed = parseList(pasteText);
       const queue = [];
       if (includeCallbacks) queue.push(...pending.callbacks);
       if (includeLeftovers) queue.push(...pending.leftovers);
 
-      let skippedDq = 0;
-      if (parsed.length) {
-        const names = parsed.map((p) => p.name.toLowerCase());
-        const { data: existing } = await sb()
-          .from("focus_companies")
-          .select("id,name,status,website,enrichment,dials,notes,callback_at")
-          .eq("user_id", authId)
-          .filter("name", "in", `(${names.map((n) => `"${n.replace(/"/g, "")}"`).join(",")})`);
-        const byName = new Map((existing || []).map((r) => [r.name.toLowerCase(), r]));
-        const toInsert = [];
-        for (const p of parsed) {
-          const ex = byName.get(p.name.toLowerCase());
-          if (ex) {
-            if (ex.status === "disqualified") { skippedDq++; continue; }
-            if (!queue.some((q) => q.id === ex.id)) queue.push(ex); // re-use record
-            continue;
-          }
-          toInsert.push({ user_id: authId, name: p.name, website: p.website });
-        }
-        if (toInsert.length) {
-          const { data: inserted, error } = await sb().from("focus_companies").insert(toInsert).select("*");
-          if (error) throw error;
-          queue.push(...(inserted || []));
-        }
-      }
+      const { queue: pasted, skippedDq } = await materializeCompanies(parseList(pasteText));
+      queue.push(...pasted);
 
-      if (!queue.length) {
+      // de-dupe by id (a pasted name may match an included callback/leftover)
+      const seen = new Set();
+      const finalQueue = queue.filter((c) => (seen.has(c.id) ? false : (seen.add(c.id), true)));
+
+      if (!finalQueue.length) {
         setSetupErr(skippedDq ? `All ${skippedDq} pasted companies were previously disqualified — nothing to call.` : "Paste a list or include callbacks to start.");
         setStarting(false);
         return;
@@ -340,11 +399,15 @@ export default function FocusSessionView({ currentUser, onExit }) {
       if (sErr) throw sErr;
 
       setSessionId(sess.id);
-      setList(queue);
+      setList(finalQueue);
       setIdx(0);
-      setNote(queue[0]?.notes || "");
+      setNote(finalQueue[0]?.notes || "");
       setStats({ dials: 0, no_answers: 0, voicemails: 0, gatekeepers: 0, conversations: 0, meetings: 0, callbacks: 0, disqualified: 0 });
-      setStartedAt(Date.now());
+      accumRef.current = 0;
+      runningSinceRef.current = Date.now();
+      setElapsed(0);
+      setOvertime(false);
+      setOverlay(null);
       setPhase("live");
       if (skippedDq) console.info(`Skipped ${skippedDq} previously disqualified compan${skippedDq === 1 ? "y" : "ies"}.`);
     } catch (e) {
@@ -352,6 +415,36 @@ export default function FocusSessionView({ currentUser, onExit }) {
       setSetupErr(e?.message?.includes("focus_") ? "Focus tables missing — run the migration SQL in Supabase first." : "Couldn't start the session — check your connection and try again.");
     }
     setStarting(false);
+  }
+
+  // ── Continue from the extend screen with more companies ────────────────────
+  function continueWith(queue) {
+    const ids = new Set(list.map((x) => x.id));
+    const adds = queue.filter((q) => !ids.has(q.id));
+    if (!adds.length) return false;
+    const startAt = list.length;
+    if (remaining != null && remaining <= 0) setOvertime(true);
+    setList([...list, ...adds]);
+    setIdx(startAt);
+    setNote(adds[0]?.notes || "");
+    runningSinceRef.current = Date.now();
+    setPhase("live");
+    return true;
+  }
+
+  async function addPastedAndContinue() {
+    setAdding(true);
+    try {
+      const { queue, skippedDq } = await materializeCompanies(parseList(addText));
+      if (!continueWith(queue)) {
+        setSetupErr("");
+      }
+      setAddText("");
+      if (skippedDq) console.info(`Skipped ${skippedDq} previously disqualified.`);
+    } catch (e) {
+      console.error("addPasted:", e);
+    }
+    setAdding(false);
   }
 
   // ── Dial tally — logs an attempt, never advances ────────────────────────────
@@ -404,19 +497,22 @@ export default function FocusSessionView({ currentUser, onExit }) {
       setIdx(idx + 1);
       setNote(list[idx + 1]?.notes || "");
     } else {
-      endSession({ ...stats, [def.statKey]: stats[def.statKey] + 1 });
+      stopClock();          // clock doesn't run while deciding what's next
+      setPhase("extend");
     }
   }
 
   // ── End session ─────────────────────────────────────────────────────────────
   async function endSession(finalStats = stats) {
+    stopClock();
+    setOverlay(null);
     setPhase("done");
     if (sessionId) {
       sb().from("focus_sessions").update({ ended_at: new Date().toISOString(), ...finalStats }).eq("id", sessionId).then(() => {});
     }
     // Pacer debrief — non-blocking, plain failure is fine
     try {
-      const mins = Math.max(1, Math.round((Date.now() - startedAt) / 60000));
+      const mins = Math.max(1, Math.round(computeElapsedMs() / 60000));
       const resp = await callAI({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 220,
@@ -433,8 +529,8 @@ export default function FocusSessionView({ currentUser, onExit }) {
   }
 
   // ── Render helpers ──────────────────────────────────────────────────────────
-  const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
-  const ss = String(elapsed % 60).padStart(2, "0");
+  const fmtClock = (s) => `${String(Math.floor(Math.abs(s) / 60)).padStart(2, "0")}:${String(Math.abs(s) % 60).padStart(2, "0")}`;
+  const clockStr = fmtClock(elapsed);
   const wrap = { maxWidth: "720px", margin: "0 auto", padding: "4px 2px 80px", fontFamily: F };
   const h = (t) => <div style={{ fontSize: "0.62rem", fontWeight: 800, color: TD, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "8px" }}>{t}</div>;
   const card = { background: BG1, border: BB1, borderRadius: "16px", padding: "18px" };
@@ -499,13 +595,22 @@ export default function FocusSessionView({ currentUser, onExit }) {
             <span style={{ fontSize: "0.74rem", color: parsed.length ? TA : TD, fontWeight: 700 }}>
               {parsed.length ? `${parsed.length} compan${parsed.length === 1 ? "y" : "ies"} detected` : "Nothing detected yet"}
             </span>
-            <input
-              value={dialGoal}
-              onChange={(e) => setDialGoal(e.target.value.replace(/\D/g, ""))}
-              placeholder="Dial goal (optional)"
-              inputMode="numeric"
-              style={{ width: "140px", background: BG2, border: BB1, borderRadius: "8px", color: TP, fontFamily: F, fontSize: "0.78rem", padding: "8px 10px", outline: "none", textAlign: "center" }}
-            />
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input
+                value={dialGoal}
+                onChange={(e) => setDialGoal(e.target.value.replace(/\D/g, ""))}
+                placeholder="Dial goal"
+                inputMode="numeric"
+                style={{ width: "100px", background: BG2, border: BB1, borderRadius: "8px", color: TP, fontFamily: F, fontSize: "0.78rem", padding: "8px 10px", outline: "none", textAlign: "center" }}
+              />
+              <input
+                value={sessionMins}
+                onChange={(e) => setSessionMins(e.target.value.replace(/\D/g, ""))}
+                placeholder="Time box (min)"
+                inputMode="numeric"
+                style={{ width: "110px", background: BG2, border: BB1, borderRadius: "8px", color: TP, fontFamily: F, fontSize: "0.78rem", padding: "8px 10px", outline: "none", textAlign: "center" }}
+              />
+            </div>
           </div>
         </div>
 
@@ -529,7 +634,7 @@ export default function FocusSessionView({ currentUser, onExit }) {
         <div style={{ textAlign: "center", margin: "18px 0 22px" }}>
           <div style={{ fontSize: "0.62rem", fontWeight: 800, color: TD, letterSpacing: "0.12em", textTransform: "uppercase" }}>Session complete</div>
           <div style={{ fontSize: "2.4rem", fontWeight: 800, color: TA, lineHeight: 1.1, marginTop: "6px" }}>{stats.dials}</div>
-          <div style={{ fontSize: "0.74rem", color: TM, fontWeight: 600 }}>dials in {mm}:{ss}{dialGoal ? ` · goal ${dialGoal}` : ""}</div>
+          <div style={{ fontSize: "0.74rem", color: TM, fontWeight: 600 }}>dials in {clockStr}{dialGoal ? ` · goal ${dialGoal}` : ""}</div>
         </div>
 
         <div style={{ ...card, display: "flex", flexWrap: "wrap", gap: "16px", justifyContent: "space-around", marginBottom: "12px" }}>
@@ -573,10 +678,57 @@ export default function FocusSessionView({ currentUser, onExit }) {
     );
   }
 
+  // ════════════════════ EXTEND — list finished, session still open ════════════
+  if (phase === "extend") {
+    const addParsed = parseList(addText);
+    return (
+      <div style={wrap}>
+        <div style={{ textAlign: "center", margin: "18px 0 20px" }}>
+          <div style={{ fontSize: "0.62rem", fontWeight: 800, color: TA, letterSpacing: "0.12em", textTransform: "uppercase" }}>List complete</div>
+          <div style={{ fontSize: "1.3rem", fontWeight: 800, color: TP, marginTop: "6px" }}>
+            {list.length} companies worked · {stats.dials} dials in {clockStr}
+          </div>
+          {remaining != null && remaining > 0 && (
+            <div style={{ fontSize: "0.8rem", color: "#C9A227", fontWeight: 700, marginTop: "4px" }}>{fmtClock(remaining)} still on the clock</div>
+          )}
+        </div>
+
+        <div style={{ ...card, marginBottom: "12px" }}>
+          {h("Keep dialing — add more companies")}
+          <textarea
+            value={addText}
+            onChange={(e2) => setAddText(e2.target.value)}
+            placeholder={"Acme Manufacturing, acmemfg.com\nPalmetto Steel Supply, palmettosteel.com"}
+            rows={4}
+            style={{ width: "100%", boxSizing: "border-box", background: BG2, border: BB1, borderRadius: "10px", color: TP, fontFamily: F, fontSize: "0.84rem", padding: "12px", resize: "vertical", outline: "none", lineHeight: 1.6 }}
+          />
+          <div style={{ display: "flex", gap: "8px", marginTop: "10px", flexWrap: "wrap" }}>
+            <button
+              style={{ ...btnPrimary, opacity: addParsed.length && !adding ? 1 : 0.5 }}
+              disabled={!addParsed.length || adding}
+              onClick={addPastedAndContinue}
+            >
+              {adding ? "Adding…" : addParsed.length ? `Add ${addParsed.length} & continue` : "Add & continue"}
+            </button>
+            {extendLeft.length > 0 && (
+              <button style={btnGhost} onClick={() => continueWith(extendLeft)}>
+                Work remaining backlog ({extendLeft.length})
+              </button>
+            )}
+          </div>
+        </div>
+
+        <button style={{ ...btnPrimary, width: "100%", background: BG2, color: TP, border: BB1 }} onClick={() => endSession()}>
+          Complete session
+        </button>
+      </div>
+    );
+  }
+
   // ════════════════════ LIVE ════════════════════
   const c = list[idx];
   if (!c) return null;
-  const e = c.enrichment;
+  const e = cleanBrief(c.enrichment);
   const researching = !e && !failed.current.has(c.id);
   const attempt = (c.dials || 0) + 1;
   const goalPct = dialGoal ? Math.min(100, Math.round((stats.dials / parseInt(dialGoal, 10)) * 100)) : null;
@@ -587,12 +739,18 @@ export default function FocusSessionView({ currentUser, onExit }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px", gap: "10px", flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <span style={{ fontSize: "0.62rem", fontWeight: 800, color: TA, letterSpacing: "0.12em", textTransform: "uppercase" }}>Focus</span>
-          <span style={{ fontSize: "0.74rem", color: TD, fontVariantNumeric: "tabular-nums" }}>{mm}:{ss}</span>
+          <span style={{ fontSize: "0.74rem", color: TD, fontVariantNumeric: "tabular-nums" }}>{clockStr}</span>
+          {remaining != null && (
+            <span style={{ fontSize: "0.74rem", fontWeight: 800, fontVariantNumeric: "tabular-nums", color: remaining < 0 ? "#E0566B" : remaining <= 300 ? "#C9A227" : TA }}>
+              {remaining < 0 ? `+${fmtClock(remaining)} over` : `${fmtClock(remaining)} left`}
+            </span>
+          )}
         </div>
         <div style={{ display: "flex", gap: "14px", alignItems: "center" }}>
           <StatChip label="Dials" value={stats.dials} accent />
           <StatChip label="Convos" value={stats.conversations} />
           <StatChip label="Mtgs" value={stats.meetings} />
+          <button onClick={() => pauseClock("paused")} style={{ ...btnGhost, padding: "7px 12px", fontSize: "0.72rem" }}>Pause</button>
           <button onClick={() => endSession()} style={{ ...btnGhost, padding: "7px 12px", fontSize: "0.72rem" }}>End</button>
         </div>
       </div>
@@ -723,6 +881,45 @@ export default function FocusSessionView({ currentUser, onExit }) {
               <button key={r} onClick={() => recordOutcome("disqualified", { dq_reason: r })} style={{ ...btnGhost, padding: "9px 13px", fontSize: "0.78rem", color: "#E0566B" }}>{r}</button>
             ))}
             <button onClick={() => setPicker(null)} style={{ ...btnGhost, padding: "9px 13px", fontSize: "0.78rem", color: TD }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Full-screen pause / time-up overlay — covers everything, nothing workable underneath */}
+      {overlay && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 99999, background: "rgba(4,8,16,0.985)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px", fontFamily: F }}>
+          <div style={{ fontSize: "0.66rem", fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: overlay === "timeup" ? "#C9A227" : TA, marginBottom: "14px" }}>
+            {overlay === "timeup" ? "Time" : "Paused"}
+          </div>
+          <div style={{ fontSize: "3.4rem", fontWeight: 800, color: TP, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{clockStr}</div>
+          {overlay === "paused" && remaining != null && (
+            <div style={{ fontSize: "0.85rem", fontWeight: 700, color: remaining < 0 ? "#E0566B" : "#C9A227", marginTop: "8px", fontVariantNumeric: "tabular-nums" }}>
+              {remaining < 0 ? `${fmtClock(remaining)} past the box` : `${fmtClock(remaining)} left in the box`}
+            </div>
+          )}
+          {overlay === "timeup" && (
+            <div style={{ fontSize: "0.9rem", color: TS, marginTop: "8px", textAlign: "center", maxWidth: "320px", lineHeight: 1.5 }}>
+              That's your {sessionMins} minutes. {list.length - idx} compan{list.length - idx === 1 ? "y" : "ies"} left on the list.
+            </div>
+          )}
+          <div style={{ display: "flex", gap: "22px", margin: "26px 0 30px" }}>
+            <StatChip label="Dials" value={stats.dials} accent />
+            <StatChip label="Convos" value={stats.conversations} />
+            <StatChip label="Mtgs" value={stats.meetings} />
+            <StatChip label="Callbacks" value={stats.callbacks} />
+          </div>
+          <div style={{ display: "flex", gap: "10px", flexDirection: "column", width: "100%", maxWidth: "300px" }}>
+            {overlay === "timeup" ? (
+              <>
+                <button style={btnPrimary} onClick={() => endSession()}>Wrap up — finish session</button>
+                <button style={btnGhost} onClick={() => { setOvertime(true); resumeClock(); }}>Keep going (overtime)</button>
+              </>
+            ) : (
+              <>
+                <button style={btnPrimary} onClick={resumeClock}>Resume</button>
+                <button style={btnGhost} onClick={() => endSession()}>End session</button>
+              </>
+            )}
           </div>
         </div>
       )}
